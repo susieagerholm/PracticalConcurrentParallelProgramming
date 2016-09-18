@@ -1,0 +1,106 @@
+Exercise 2.1
+1. See MyCountFactors.java for solution. Program takes an average of 08:85 sec to run 
+(based on three test-runs).   
+
+2. See MyAtomicInteger.java for solution.
+
+3. See TestCountFactorsParallel.java for solution. Still getting the correct 
+solution but this time in an average of 04:25 (based on three test-runs). 
+Kind of surprising you have to factor up by 10 threads to only half time spend 
+on task...lots of overhead with the time share, I guess... 
+
+4. No that would not be possible. Volatile only ensures visibility of operation, 
+not thread safety. As the book says: "(...) the semantics of volatile are not 
+strong to make the increment operation atomic, unless you garantee that the 
+variable is written only by one thread", which is not the case here...  
+
+5. See TestCountFactorsParallel.java for solution.
+
+Speed using AtomicInteger is very close to previous result: An average of 04:13 
+sec (based on three test-runs).
+
+The variable myInteger holding the reference to AtomicInteger is ancapsulated 
+within a private method, so it is not published in any way as far as I can see, 
+so strictly speaking there should be no need tom make it final, but on the other 
+hand it is considered good coding style to make variables final, that are not 
+supposed to change reference or value during the execution so that other 
+developers are made explicitly aware of this invariant...    
+
+
+Exercise 2.2 
+1. The cache field has to be volatile, so that when a thread sets the reference 
+to a new OneValueCache object, the change will be immediately visible to other 
+threads.  
+
+
+2. The fields are declared final in order to create an immutable holder object 
+to store all variables, that are part of the invariant, one wishes to protect.
+
+Exercise 2.3
+
+1. See ThreadSafeHistogram.java for solution. 
+
+Methods increment and getCount are synchronized in order to preserve integrity 
+of the read-modify-write operation.
+
+The counts array is made final in order to prevent anyone from overwriting this 
+reference during execution. It doesn't seem possible a first glance to overwrite 
+the reference, but I don't know if this is an example of risk of escaping 'this' 
+because of public constructor??  
+  
+ getSpan method does not need to be synchronized since it is a read only value - 
+ this is of course is dependent upon counts.length being handled correctly as a 
+ static value by the rest of the program.
+  
+2. See HistogramCountFactorsParallelAll.java for solution. 
+
+3. See HistogramCountFactorsParallelAll.java for solution. 
+
+Yes, I believe, it is possible to remove synchronized keyword from the getCount 
+method and increment method signature and maybe instead wrap the particular array 
+object in question in a synchronization block. Actually I have not been able to 
+provoke a synchronization error no matter what I have removed or how many threads,
+I have used...
+
+4. See HistogramCountFactorsParallelAll.java for solution. AtomicIntegerArray is 
+threadsafe. 
+
+5. See HistogramCountFactorsParallelAllGetBin.java for solution. 
+
+6. I did not have time to finish this one - sorry :(
+
+Exercise 2.4
+
+1.
+See TestCache.java for solution.
+
+GetCount returns 639984 calls to factorizer and duration is an average of 41.871 sec 
+(based on three test runs).
+
+2. M1: GetCount does not return 115.000 calls to factorizer, but close. All tests return 114.999.
+Average time of computation is 19.812 sec (based on three test-runs).
+
+As expected the solution using caching is quicker and with less calls to factorizer
+than the original. 
+
+3. M2: An average of 172.030 calls to factorizer.
+Average time of computation is 13,603 sec (based on three test-runs).
+
+As expected this solution is quicker as ConcurrentHashMap offers a more finely grained 
+locking mechanism than synchronizing the entire method call as in M1. In M2 only the 
+item being manipulated is locked. I have been trying to figure out the reason why 
+caching is decreasing with this implementation, but cannot really explain it...   
+
+4. M3: An average of 116.666 calls to factorizer.
+Average time of computation is 11,542 sec (based on three test-runs).
+
+5. M4: 114.999 calls to factorizer.
+Average time of computation is 12,301 sec (based on three test-runs).
+
+6. M5: 114.999 calls to factorizer.
+Average time of computation is 11,614 sec (based on three test-runs).
+
+7. I did not have time to finish this one - sorry :( 
+
+
+  

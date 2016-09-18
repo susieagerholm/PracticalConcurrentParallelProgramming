@@ -1,0 +1,21 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T17:30:35+0200
+countSequential                   12741,6 us      60,75         32
+countParallelLocal      1         12974,0 us     127,23         32
+countParallelLocal      2          8858,9 us     188,43         32
+countParallelLocal      3          8368,8 us      96,55         32
+countParallelLocal      4          6634,4 us      51,08         64
+countParallelLocal      5          6504,8 us      70,05         64
+countParallelLocal      6          6612,8 us      42,62         64
+countParallelLocal      7          6607,3 us      25,88         64
+countParallelLocal      8          6579,7 us      47,52         64
+countParallelLocal      9          6768,9 us     251,15         64
+countParallelLocal     10          6847,6 us     275,45         64
+countParallelLocal     11          6519,5 us      80,81         64
+countParallelLocal     12          6618,7 us      99,69         64
+countParallelLocal     13          6778,5 us     174,62         64
+countParallelLocal     14          6667,5 us      87,08         64
+countParallelLocal     15          6561,6 us      23,16         64
+countParallelLocal     16          6536,8 us      18,60         64

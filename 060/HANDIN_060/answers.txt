@@ -1,0 +1,386 @@
+Exercise 6.1.1
+
+// Return value v associated with key k, or null
+  public V get(K k) {
+    // TO DO: IMPLEMENT
+	final int h = getHash(k), stripe = h % lockCount;
+    synchronized (locks[stripe]) {
+	   final int hash = h % buckets.length;
+	   ItemNode<K, V> node = ItemNode.search(buckets[hash], k);
+	   if (node != null) 
+		return node.v;
+	   else
+		return null;
+	}
+  }
+
+Exercise 6.1.2
+  
+ public int size() {
+	// TO DO: IMPLEMENT
+	int result = 0;
+	for (int stripe = 0; stripe < lockCount; stripe++) {
+		synchronized (locks[stripe]) {
+			result += sizes[stripe];
+		}
+	}	
+	return result;
+  }
+
+It is necessary to lock stripe s because otherwise another thread might be adding a new node to
+the buckets in the stripe meanwhile, which leads to loss of data-integrity...    
+  
+  Exercise 6.1.3
+  
+  // Put v at key k only if absent
+  public V putIfAbsent(K k, V v) {
+    // TO DO: IMPLEMENT
+	final int h = getHash(k), stripe = h % lockCount;
+    synchronized (locks[stripe]) {
+		final int hash = h % buckets.length;
+	    final ItemNode<K,V> node = ItemNode.search(buckets[hash], k);
+        if (node != null)
+            return node.v;
+        else {
+            buckets[hash] = new ItemNode<K,V>(k, v, buckets[hash]);
+			sizes[stripe]++;
+            return null;
+		}	
+	}
+  }
+
+  
+  Exercise 6.1.4
+  
+ // Remove and return the value at key k if any, else return null
+  public V remove(K k) {
+    // TO DO: IMPLEMENT
+    final int h = getHash(k), hash = h % buckets.length, stripe = h % lockCount;
+	synchronized (locks[stripe]) { 
+		ItemNode<K,V> prev = buckets[hash];
+		if (prev == null) return null;
+		else if (k.equals(prev.k)) {        // Delete first ItemNode
+			V old = prev.v;
+			sizes[stripe]--;
+			buckets[hash] = prev.next; //Set next to be the new first ItemNode
+			return old;
+		} 
+		else {                            // Search later ItemNodes
+			while (prev.next != null && !k.equals(prev.next.k))
+			prev = prev.next;
+			// Now prev.next == null || k.equals(prev.next.k)
+			if (prev.next != null) {  // Delete ItemNode prev.next
+				V old = prev.next.v;
+				sizes[stripe]--;
+				prev.next = prev.next.next;
+				return old;
+			} else
+				return null;
+			}
+	}
+  }
+
+
+   
+Exercise 6.1.5
+  
+  public void forEach(Consumer<K,V> consumer) {
+    // TO DO: IMPLEMENT
+	for (int stripe=0; stripe<lockCount; stripe++) { 
+		synchronized (locks[stripe]) {
+			for (int hash=stripe; hash<buckets.length; hash+=lockCount) { //iterate through buckets in this stripe
+				ItemNode<K,V> node = buckets[hash];
+				while (node != null) { //have we reached end of this bucket?
+					int myStripe = getNodeStripe(node);
+					consumer.accept(node.k, node.v);
+					node = node.next;
+				}
+				
+			}
+		}
+	}
+  }	
+  
+  public void forEach(Consumer<K, V> consumer) {
+	  lockAllAndThen(() -> {
+			for (int hash=0; hash<buckets.length; hash++) {
+			ItemNode<K,V> node = buckets[hash];
+			while (node != null) {
+			consumer.accept(node.k, node.v);
+			node = node.next;
+			}
+		}
+	});
+  }
+  
+  I have implemented both version to make sure I was able to do so :) I prefer the version, where the stripes are locked sequentially in order to gain better overall performance for the
+  application - no need to keep entire map on lockdown...  
+  
+Exercise 6.1.6
+  
+  
+class SynchronizedMap
+        17 maps to B
+       117 maps to C
+        34 maps to F
+       217 maps to E
+        17 maps to B
+        17 maps to B
+       217 maps to E
+        34 maps to F
+       217 maps to E
+        17 maps to B
+        34 maps to F
+
+class StripedMap
+        17 maps to B
+       117 maps to C
+       217 maps to E
+        17 maps to B
+        34 maps to F
+        17 maps to B
+       217 maps to E
+        34 maps to F
+       217 maps to E
+        17 maps to B
+        34 maps to F
+		
+The two tests are returning the same results which leads me to conclude, that there is a small chance StripedMap is implemented correctly :) 
+  
+Exercise 6.1.7
+  
+  I have done five test runs. StripedMap is around 5 times faster than the synchronized Map. This difference in performance
+  is to be expected since the StripedMap only locks down smaller parts of the map - hence decreasing the risk of waiting for
+  locks substantially. With 32 different stripes and only 16 threads StripedMap might have been expected to perform even better, 
+  but the overhead of the more complex implementation of the striped locking scheme must eat some of the performance benefit.
+
+  	# OS:   Windows 8.1; 6.3; amd64
+	# JVM:  Oracle Corporation; 1.8.0_40
+	# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+	# Date: 2015-10-06T18:29:18+0200
+
+	SynchronizedMap       16         532569,6 us   17463,42          2			99992.0
+	StripedMap            16         108785,7 us    2260,34          4			99992.0
+
+	SynchronizedMap       16         518105,4 us   14204,44          2			99992.0
+	StripedMap            16         109403,7 us    1441,97          4			99992.0
+
+	SynchronizedMap       16         523594,7 us   15607,44          2			99992.0
+	StripedMap            16         108605,9 us    2684,00          4			99992.0
+
+	SynchronizedMap       16         518270,0 us   13457,36          2			99992.0
+	StripedMap            16         108217,2 us    1860,78          4			99992.0
+
+	SynchronizedMap       16         525024,4 us   13075,15          2			99992.0
+	StripedMap            16         107321,5 us    1471,74          4			99992.0
+	
+  
+Exercise 6.1.8
+  
+A more finegrained locking scheme with a lock for every bucket would make it almost impossible to do 
+threadsafe operations on the entire set (like size()) and also leave a huge memory footprint.
+  
+Exercise 6.1.9
+  
+A doubling of the number of stripes lowers the statistical risk of a stripe already being locked by another thread by 50%. 
+This correlation between the number of active strings and map performance is dependent upon a hash that provides an even 
+distribution of keys and values across the map.  
+  
+Exercise 6.1.10
+
+I guess this would be in order to ensure, that a bucket is not moved to another stripe when reallocating buckets,
+since this could leave a bucket in an unaccounted for state while making the switch to the new locking stripe.
+  
+Exercise 6.2.1
+  
+ public int size() {
+    // TO DO: IMPLEMENT
+	int res = 0;
+	for (int i = 0; i < sizes.length(); i++) {
+		res += sizes.get(i);
+	}
+    return res;
+  }
+  
+Exercise 6.2.2
+  
+  public V putIfAbsent(K k, V v) {
+    // TO DO: IMPLEMENT
+    final int h = getHash(k), stripe = h % lockCount;
+	final Holder<V> holder = new Holder<V>();
+	holder.set(v);
+	final ItemNode<K,V>[] bs; //= buckets;
+	int afterSize; 
+    synchronized (locks[stripe]) {
+		bs = buckets;
+		afterSize = sizes.get(stripe);
+		final int hash = h % bs.length; //find relevant bucket
+		ItemNode<K, V> node = bs[hash]; //find first node
+	    if (!ItemNode.search(node, k, holder)) {
+            bs[hash] = new ItemNode<K,V>(k, v, bs[hash]);
+			afterSize = sizes.addAndGet(stripe, 1); 			
+	    }
+		
+	}
+	if (afterSize * lockCount > bs.length)
+			reallocateBuckets(bs);
+	return holder.get();
+  }
+ 
+You do not need to write to stripe size when nothing was added because this value was never changed. Also implementation of sizes as
+AtomicIntegerArray ensures, that you do not have visibility issues with this array as with buckets.
+
+Exercise 6.2.3
+
+ public V remove(K k) {
+    //return null;
+	// TO DO: IMPLEMENT
+    final int h = getHash(k), stripe = h % lockCount;
+	final Holder<V> holder = new Holder<V>();
+	final ItemNode<K,V>[] bs;
+	//int afterSize;
+	synchronized (locks[stripe]) {
+		bs = buckets;
+		final int hash = h % bs.length; //find relevant bucket 
+		ItemNode<K, V> node = bs[hash]; //find first node
+		ItemNode<K, V> deleted = ItemNode.delete(node, k, holder);
+	    if (deleted!= null) {
+			//afterSize = sizes.get(stripe);
+			bs[hash] = deleted;
+			sizes.decrementAndGet(stripe);
+			return holder.get();
+		}	
+        else {
+			return null;
+	    }
+	}
+  }
+
+
+Exercise 6.2.4 
+
+public void forEach(Consumer<K,V> consumer) {
+    // TO DO: IMPLEMENT
+	final ItemNode<K,V>[] bs = buckets;
+	for (int stripe=0; stripe < lockCount; stripe++) {
+		synchronized (locks[stripe]) {
+			for (int hash=stripe; hash<bs.length; hash+=lockCount) {
+				ItemNode<K,V> node = buckets[hash];
+				while (node != null) {
+				consumer.accept(node.k, node.v);
+				node = node.next;
+				}
+			}
+		}
+	}
+  }
+ 
+
+Exercise 6.2.5  
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-10-11T12:43:02+0200
+SynchronizedMap       16         528790,3 us   14787,64          2		99992.0
+StripedMap            16         232737,9 us   39085,38          2		99992.0
+StripedWriteMap       16         156941,9 us   18278,51          2		99992.0
+WrapConcHashMap       16         171224,4 us   65407,09          2		99992.0
+
+SynchronizedMap       16         517607,9 us   14240,04          2		99992.0
+StripedMap            16         243710,2 us   34880,13          2		99992.0
+StripedWriteMap       16         157701,1 us   18503,60          2		99992.0
+WrapConcHashMap       16         181074,3 us   77365,87          2		99992.0
+
+SynchronizedMap       16         527262,1 us   13219,48          2		99992.0
+StripedMap            16         235481,2 us   41992,64          2		99992.0
+StripedWriteMap       16         160484,5 us   18649,87          2		99992.0
+WrapConcHashMap       16         171718,2 us   49138,85          2		99992.0
+
+SynchronizedMap       16         526060,3 us   20953,56          2		99992.0
+StripedMap            16         248778,2 us   39394,55          2		99992.0
+StripedWriteMap       16         162334,9 us   17830,59          2		99992.0
+WrapConcHashMap       16         186508,3 us   70596,12          2		99992.0
+
+SynchronizedMap       16         523408,5 us   12833,80          2		99992.0
+StripedMap            16         232206,4 us   41567,32          2		99992.0
+StripedWriteMap       16         159080,1 us   17774,14          2		99992.0
+WrapConcHashMap       16         177745,5 us   77775,89          2		99992.0
+
+I have done 5 test runs. The Maps perform pretty much as expected. The fully synchronized Map is by far the slowest implementation,
+because there is virtually no concurrency going on. Striped Map, which enables a more finegrained locking of smaller parts of the map
+is about twice as fast as the synchronized version, while StripedWriteMap  -the version of the StripedMap which only locks the stripe 
+for write operations is the fastest of the tree. The wrapper for ConcurentHashMap, which utilizes Javas native implementation of a 
+thread safe map is a little slower than StripedWriteMap, but the difference is not very big, so results speak in favour of using the 
+default implementation. 
+
+
+Exercise 6.2.6  
+
+I do not have access to computer with more than 4 cores :(
+
+Exercise 6.3.1
+
+I have changed the unit of measurement from micro second to nanosecond in order to get valid results for the 
+smaller measurements on hashcode and ThreadLocalRandom.   
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-10-11T14:32:06+0200
+current thread hashCode               3,1 ns  	     0,01  134217728
+ThreadLocalRandom                     4,6 ns       	 0,02   67108864
+AtomicLong                   1168679447,3 ns  16267036,64          2
+LongAdder                     141615662,9 ns   5510826,42          2
+LongCounter                   466124544,8 ns 365488130,91          2
+NewLongAdder                  492292123,2 ns  66814364,58          2
+NewLongAdderPadded            190732594,4 ns  14197905,74          2
+NewLongAdderLessPadded        281392932,3 ns  30212389,34          2
+
+current thread hashCode               3,1 ns         0,06  134217728
+ThreadLocalRandom                     4,6 ns         0,02   67108864
+AtomicLong                   1179197013,1 ns  12645991,29          2
+LongAdder                     140866802,6 ns   4696695,37          2
+LongCounter                   457145220,8 ns 356309589,55          2
+NewLongAdder                  518912392,5 ns  53984071,78          2
+NewLongAdderPadded            190353986,9 ns  24872197,68          2
+NewLongAdderLessPadded        280005423,4 ns  30242238,40          2
+
+current thread hashCode               3,1 ns         0,01  134217728
+ThreadLocalRandom                     4,6 ns         0,01   67108864
+AtomicLong                   1171348297,6 ns  22866477,68          2
+LongAdder                     142195254,2 ns   5424448,06          2
+LongCounter                   453839097,3 ns 340644013,61          2
+NewLongAdder                  511374010,1 ns  63660820,28          2
+NewLongAdderPadded            186217304,0 ns  22971599,87          2
+NewLongAdderLessPadded        259317451,4 ns  38286638,33          2
+
+current thread hashCode               3,1 ns         0,01  134217728
+ThreadLocalRandom                     4,6 ns         0,01   67108864
+AtomicLong                   1178509611,7 ns  29394863,27          2
+LongAdder                     141206674,9 ns   3864954,03          2
+LongCounter                   459460835,3 ns 354905330,92          2
+NewLongAdder                  516730678,1 ns  36961891,07          2
+NewLongAdderPadded            191966578,8 ns  14374663,81          2
+NewLongAdderLessPadded        259603829,4 ns  38869808,51          2
+
+current thread hashCode               3,1 ns         0,02  134217728
+ThreadLocalRandom                     4,6 ns         0,02   67108864
+AtomicLong                   1175714723,3 ns  11776961,55          2
+LongAdder                     140365892,9 ns   3721760,14          2
+LongCounter                   454943389,6 ns 340379977,36          2
+NewLongAdder                  498564046,4 ns  58548442,86          2
+NewLongAdderPadded            185881701,5 ns  13600282,86          2
+NewLongAdderLessPadded        256133650,8 ns  45817580,64          2
+
+As expected access to a local version of a variable (current thread hash code og ThreadLocalRandom) is super fast. 
+It is kind of surprising, that the native Java constructs for handling concurrent updates to a shared variable (AtomicLong
+and Long Counter) are considerably slower than a customized version like NewLongAdder, that has the overhead of iterating
+over an array for computation of the result. LongAdder which is the latest addition to the Java API is the solution with
+the best performance for the given task.
+
+Exercise 6.3.2 
+
+Yes it does make a difference - se measurement above: NewLongAdderPadded is 25% faster than the version without padding.
+This is due to the padding distributing the data across the cache, so that more valid data is maintained when invalidating
+a cache after a write.

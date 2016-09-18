@@ -1,0 +1,27 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-21T21:18:09+0200
+multiply                          56039,8 ns  172909,32          2
+multiply                            215,6 ns      75,70          4
+multiply                            200,1 ns     122,08          8
+multiply                            195,0 ns     106,29         16
+multiply                            310,5 ns     272,34         32
+multiply                             96,2 ns      33,94         64
+multiply                             77,3 ns      61,13        128
+multiply                             57,1 ns      10,56        256
+multiply                             74,7 ns       2,85        512
+multiply                             51,1 ns       0,63       1024
+multiply                             50,9 ns       0,18       2048
+multiply                             51,4 ns       1,65       4096
+multiply                             41,4 ns       0,95       8192
+multiply                             41,4 ns       1,17      16384
+multiply                             42,0 ns       3,17      32768
+multiply                             39,1 ns       0,06      65536
+multiply                             39,1 ns       0,03     131072
+multiply                             35,4 ns       0,87     262144
+multiply                             35,2 ns       0,12     524288
+multiply                             35,2 ns       0,42    1048576
+multiply                             36,1 ns       1,35    2097152
+multiply                             35,5 ns       0,87    4194304
+multiply                             35,3 ns       0,46    8388608

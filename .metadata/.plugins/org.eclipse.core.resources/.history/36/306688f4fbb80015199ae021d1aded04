@@ -1,0 +1,479 @@
+// Pipelined sorting using P>=1 stages, each maintaining an internal
+// collection of size S>=1.  Stage 1 contains the largest items, stage
+// 2 the second largest, ..., stage P the smallest ones.  In each
+// stage, the internal collection of items is organized as a minheap.
+// When a stage receives an item x and its collection is not full, it
+// inserts it in the heap.  If the collection is full and x is less
+// than or equal to the collections's least item, it forwards the item
+// to the next stage; otherwise forwards the collection's least item
+// and inserts x into the collection instead.
+
+// When there are itemCount items and stageCount stages, each stage
+// must be able to hold at least ceil(itemCount/stageCount) items,
+// which equals (itemCount-1)/stageCount+1.
+
+// sestoft@itu.dk * 2016-01-10
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.DoubleStream;
+import java.util.function.DoubleFunction;
+import java.util.function.Function;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntToDoubleFunction;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CyclicBarrier;
+
+public class SortingPipeline {
+  private static CyclicBarrier barrier; //needed in order to conduct proper performance estimates
+  
+  public static void main(String[] args) {
+    SystemInfo();
+    final int count = 100_000, P = 4;
+    final int testRuns = 10;
+    
+    final double[] arr = DoubleArray.randomPermutation(count);
+ // TO DO: Create and run pipeline to sort numbers from arr
+    final double[] arr_small = DoubleArray.randomPermutation(40);
+    
+    final BlockingDoubleQueue[] bdq_impl = getQueues(P);    
+    final double[][] randomDoublesArray = getRandomDoubles(testRuns, count);
+    
+    //run sort pipeline several times 
+    sortPipeline(arr_small, P, bdq_impl);
+    
+    //Mark7(String.format("%-21s %d", "StripedWriteMap", count), 
+      //      i -> exercisePipeline(count, P, bdq_impl));
+      
+  }
+  
+  private static BlockingDoubleQueue[] getQueues(int P) {
+	  //Create array of queues
+	  int no = P + 1;
+	  BlockingDoubleQueue[] bdq = new BlockingDoubleQueue[no];  
+	  for (int i = 0; i < no; i++) {
+		  //bdq[i] = new BlockingNDoubleQueue(50); 
+		  bdq[i] = new WrappedArrayDoubleQueue();
+	  }
+	  return bdq;
+	  
+  }
+  
+  //
+  private static double[][] getRandomDoubles(int no, int count) {
+	  double[][] my_doubles = new double[no][];
+	  for(int i = 0; i < no; i++) {
+		  my_doubles[i] = DoubleArray.randomPermutation(count); 
+	  }
+	  return my_doubles;
+  }
+  
+  /*private static double exercisePipeline(int count, int P, BlockingDoubleQueue[] queues) {
+	  final double[] arr = DoubleArray.randomPermutation(count);
+      sortPipeline(arr, P, queues);
+	  final double[] all = DoubleArray.randomPermutation(1);  
+	  return all[0];
+  }*/
+
+  private static void sortPipeline(double[] arr, int P, BlockingDoubleQueue[] queues) {
+    //INITIALIZATION PHASE: DECLARE AND INITIALIZE OTHER THREADS 
+	/*if (arr.length % P != 0) //TODO: Find more clever way to make sure this also works if not multiple!!
+	      throw new RuntimeException("bucket count must be a multiple of stripe count");*/
+	
+	//Cyclic Barrier to ensure all start sync - for correct performance measurements
+	barrier = new CyclicBarrier(P+2+1); //wait for generator, sortchecker, sorting stages and finally main tread
+		
+	  
+	final int size = arr.length / P;  
+	Runnable generator = new DoubleGenerator(arr, arr.length + (P - 0) * size, queues[0]);
+	Thread gen = new Thread(generator);
+	
+	Runnable checker = new SortedChecker(arr.length, queues[queues.length - 1]); 
+	Thread check = new Thread(checker);
+	
+		
+	try {
+		List<Thread> threads = new ArrayList<Thread>(); 
+		for (int i = 1; i <= P; i++) {
+			int itemCount = arr.length + (P - i) * size;
+			//System.out.println("CREATING THREAD WITH itemCount" + itemCount);
+			Thread t = new Thread(new SortingStage(queues[i - 1], queues[i], size, itemCount));
+			threads.add(t);
+			t.start();
+		}
+		
+		gen.start();
+		check.start();
+		
+		/*gen.join(); check.join();
+		for (int j = 0; j < P; j++) {
+			threads.get(j).join();
+		}*/
+		
+		System.out.println("WAITING BARRIER 1:" + barrier.getNumberWaiting());
+		barrier.await(); //wait for all threads to be ready
+		Timer t = new Timer();
+		System.out.println("TIMER STARTING...");
+		System.out.println("WAITING BARRIER 2:" + barrier.getNumberWaiting());
+		barrier.await(); //wait for all threads to finish
+		System.out.println("TIME SPEND : " + t.check());
+		
+		
+		
+	} catch (Exception e) {
+		throw new RuntimeException(e);
+	}
+	System.out.println("MAIN DONE");
+	//System.exit(0);
+
+  }
+
+  static class SortingStage implements Runnable {
+    // TO DO: field declarations, constructor, and so on
+	//INVARIANT: heap[ (i - 1) / 2 ] <= heap[i] // all heap elements are sorted - ascending!!  
+	private final BlockingDoubleQueue input; 
+	private final BlockingDoubleQueue output;
+	private final double[] heap; //encapsulated within thread...
+	private int heapSize; //encapsulated within thread...
+	private int itemCount; //encapsulated within thread...
+	
+	public SortingStage(BlockingDoubleQueue input, BlockingDoubleQueue output, int size, int itemCount) {
+		this.input = input;
+		this.output = output;
+		this.heap = new double[size];
+		this.itemCount = itemCount;
+	}
+    
+    public void run() {
+      try {
+      barrier.await();	  
+      //System.out.println("SORTING STAGE STARTED!!" + itemCount);	
+      while(itemCount > 0) {
+    	  double x = input.take();//get number from input
+    	  if (heapSize < heap.length) {
+    		  heap[heapSize++] = x;
+    		  //System.out.println("INCLUDING x " + this.toString() + "current thread " + Thread.currentThread().toString());
+    		  DoubleArray.minheapSiftup(heap, heapSize-1, heapSize-1);
+    	  }
+    	  else if (x <= heap[0]) { //X is smallest, forward x
+    			  output.put(x);//add x to output queue;
+    			  //System.out.println("FORWARDING x");
+    			  itemCount--;
+    	  }
+    	  else {
+    		  double least = heap[0]; //forward least, replace with x
+    		  heap[0] = x;
+    		  DoubleArray.minheapSiftdown(heap, 0, heapSize-1);
+    		  output.put(least);
+    		  //System.out.println("PUTTING x");
+    		  itemCount--;
+    	  }
+      	}
+      barrier.await();
+      	//System.out.println("SORTING STAGE TERMINATED");
+      } catch (Exception e) {
+    	  e.printStackTrace();
+      }
+    }
+  }
+
+  static class DoubleGenerator implements Runnable {
+    private final BlockingDoubleQueue output;
+    private final double[] arr;  // The numbers to feed to output
+    private final int infinites;
+
+    public DoubleGenerator(double[] arr, int infinites, BlockingDoubleQueue output) {
+      this.arr = arr;
+      this.output = output;
+      this.infinites = infinites;
+    }
+
+    public void run() { 
+      try {	
+      barrier.await();	  
+      //System.out.println("DoubleGen getting started!!");	
+      for (int i=0; i<arr.length; i++)  // The numbers to sort
+        output.put(arr[i]);
+      	//System.out.println("GEN PUTTING ON QUEUE");
+      for (int i=0; i<infinites; i++)   // Infinite numbers for wash-out
+        output.put(Double.POSITIVE_INFINITY);
+      barrier.await();
+      //System.out.println("GEN TERMINATED");
+      }
+      catch (Exception e) {
+    	  e.printStackTrace();
+      }
+    }
+  }
+
+  static class SortedChecker implements Runnable {
+    // If DEBUG is true, print the first 100 numbers received
+    private final static boolean DEBUG = false;
+    private final BlockingDoubleQueue input;
+    private final int itemCount; // the number of items to check
+
+    public SortedChecker(int itemCount, BlockingDoubleQueue input) {
+      this.itemCount = itemCount;
+      this.input = input;
+    }
+
+    public void run() {
+    try {
+      barrier.await();
+      //System.out.println("SortedChecker started");
+      int consumed = 0;
+      double last = Double.NEGATIVE_INFINITY;
+      while (consumed++ < itemCount) {
+    	//  System.out.println("SORT CHECKER CONSUMED " + consumed);
+        double p = input.take();
+        //System.out.println("SORT CHECKER CONSUMED " + p);
+        if (DEBUG && consumed <= 100) 
+          System.out.print(p + " ");
+        if (p <= last)
+          System.out.printf("Elements out of order: %g before %g%n", last, p);
+        last = p;
+      	}
+      barrier.await();
+      } catch (Exception e) {
+    	  e.printStackTrace();
+      }    
+      //System.out.println("SORT CHECKER FINISHED " + itemCount + " items sorted ascending");
+      if (DEBUG)
+        System.out.println();
+    }
+  }
+
+  // --- Benchmarking infrastructure ---
+
+  // NB: Modified to show milliseconds instead of nanoseconds
+
+  public static double Mark7(String msg, IntToDoubleFunction f) {
+	int n = 10, count = 1, totalCount = 0; 
+    double dummy = 0.0, runningTime = 0.0, st = 0.0, sst = 0.0;
+    do { 
+      count *= 2; //increment count by 2
+      st = sst = 0.0;
+      for (int j=0; j<n; j++) {  //run this amount of test runs
+        Timer t = new Timer();
+        for (int i=0; i<count; i++) {	
+          dummy += f.applyAsDouble(i); //run method under test this many times for each test run
+        }  
+        runningTime = t.check();
+        double time = runningTime * 1e3 / count;
+        st += time; 
+        sst += time * time;
+        totalCount += count;
+      }
+    } while (runningTime < 0.25 && count < Integer.MAX_VALUE/2);
+    double mean = st/n, sdev = Math.sqrt((sst - mean*mean*n)/(n-1));
+    System.out.printf("%-25s %15.1f ms %10.2f %10d%n", msg, mean, sdev, count);
+    return dummy / totalCount;
+  }
+  
+  
+  public static void SystemInfo() {
+    System.out.printf("# OS:   %s; %s; %s%n", 
+                      System.getProperty("os.name"), 
+                      System.getProperty("os.version"), 
+                      System.getProperty("os.arch"));
+    System.out.printf("# JVM:  %s; %s%n", 
+                      System.getProperty("java.vendor"), 
+                      System.getProperty("java.version"));
+    // The processor identifier works only on MS Windows:
+    System.out.printf("# CPU:  %s; %d \"cores\"%n", 
+                      System.getenv("PROCESSOR_IDENTIFIER"),
+                      Runtime.getRuntime().availableProcessors());
+    java.util.Date now = new java.util.Date();
+    System.out.printf("# Date: %s%n", 
+      new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ").format(now));
+  }
+
+  // Crude wall clock timing utility, measuring time in seconds
+   
+  static class Timer {
+    private long start, spent = 0;
+    public Timer() { play(); }
+    public double check() { return (System.nanoTime()-start+spent)/1e9; }
+    public void pause() { spent += System.nanoTime()-start; }
+    public void play() { start = System.nanoTime(); }
+  }
+}
+
+// ----------------------------------------------------------------------
+
+// Queue interface
+
+interface BlockingDoubleQueue {
+  double take();
+  void put(double item);
+}
+
+// The queue implementations
+
+// WrappedArrayDoubleQueue
+class WrappedArrayDoubleQueue implements BlockingDoubleQueue {
+	//FROM API: BlockingQueue implementations are thread-safe. All queuing methods achieve their effects 
+	//atomically using internal locks or other forms of concurrency control.  
+	private final ArrayBlockingQueue<Double> underlying = new ArrayBlockingQueue<Double>(50);
+
+	@Override
+	/*FROM ArrayBlockingQueue API:Retrieves and removes the head of this queue, 
+	 * waiting if necessary until an element becomes available.
+	 */
+	public double take() {
+		try {
+			//System.out.println("Tread trying to take - blocked at queue...");
+			return underlying.take();
+		}
+		catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		System.out.println("RETURNING DUMMY DOUBLE 0.0 T0 SATISFY COMPILER AND INTERFACE: SHOULD BE FIXED!!");
+		return 0.0;
+		
+	}
+	
+	@Override
+	/*FROM ArrayBlockingQueue API: Inserts the specified element at the tail of this queue, 
+	*waiting for space to become available if the queue is full.
+	*/
+	public void put(double item) {
+		// TODO Auto-generated method stub
+		try {
+			//System.out.println("Tread trying to put - blocked at queue...");
+				underlying.put(item);
+			
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}	
+	}
+}
+
+//My solution is heavily inspired by the SemaphoreBoundedQueue solution presented 
+//in slides from lecture 8 
+class BlockingNDoubleQueue implements BlockingDoubleQueue {
+	private final Semaphore availableItems, availableSpaces; 
+	private final double[] arr; //array holding items in queue
+	private final int spaces; //available spaces in queue..
+	private int head = 0, tail=0; //head pointer designate head of queue, tail is end of queue 
+	
+	public BlockingNDoubleQueue(int spaces) {
+		this.spaces = spaces;
+		this.arr = new double[spaces];
+		this.availableSpaces = new Semaphore(spaces); //initialize semaphore in non-fair mode
+		this.availableItems = new Semaphore(0); //initialize semaphore in non-fair mode
+	}
+	
+	@Override
+	public void put(double item) {
+		// TODO Auto-generated method stub
+		try {
+			availableSpaces.acquire(); //wait for queue to have space...
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		putHelper(item); //delegate to 
+		availableItems.release(); //notify threads waiting to take from queue
+	}
+	
+	@Override
+	public double take() {
+		// TODO Auto-generated method stub
+		try {
+			availableItems.acquire(); //wait for queue to have item to take
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //acquire must succeed in order to get to take... 
+		double my_double = takeHelper();
+		availableSpaces.release();
+		return my_double;
+	}
+
+	private synchronized void putHelper(double item) {
+		arr[tail] = item; //set the item as the new tail
+		tail = (tail + 1) % arr.length; //increment the tail count and use modulo to wrap as circular array
+	}
+	
+	private synchronized double takeHelper() {
+		double item = arr[head]; //get item
+		//no need to nullify old head since array is holding primitives - just data
+		head = (head + 1) % arr.length; //increment the head count and use modulo to wrap as circular array
+		return item; //return the item taken 
+	}
+}
+
+// ----------------------------------------------------------------------
+
+class DoubleArray {
+  public static double[] randomPermutation(int n) {
+    double[] arr = fillDoubleArray(n);
+    shuffle(arr);
+    return arr;
+  }
+
+  private static double[] fillDoubleArray(int n) {
+    double[] arr = new double[n];
+    for (int i = 0; i < n; i++)
+      arr[i] = i + 0.1;
+    return arr;
+  }
+
+  private static final java.util.Random rnd = new java.util.Random();
+
+  private static void shuffle(double[] arr) {
+    for (int i = arr.length-1; i > 0; i--)
+      swap(arr, i, rnd.nextInt(i+1));
+  }
+
+  // Swap arr[s] and arr[t]
+  private static void swap(double[] arr, int s, int t) {
+    double tmp = arr[s]; arr[s] = arr[t]; arr[t] = tmp;
+  }
+
+  // Minheap operations for parallel sort pipelines.  
+  // Minheap invariant: 
+  // If heap[0..k-1] is a minheap, then heap[(i-1)/2] <= heap[i] for
+  // all indexes i=1..k-1.  Thus heap[0] is the smallest element.
+
+  // Although stored in an array, the heap can be considered a tree
+  // where each element heap[i] is a node and heap[(i-1)/2] is its
+  // parent. Then heap[0] is the tree's root and a node heap[i] has
+  // children heap[2*i+1] and heap[2*i+2] if these are in the heap.
+
+  // In heap[0..k], move node heap[i] downwards by swapping it with
+  // its smallest child until the heap invariant is reestablished.
+
+  public static void minheapSiftdown(double[] heap, int i, int k) {
+    int child = 2 * i + 1;                          
+    if (child <= k) {
+      if (child+1 <= k && heap[child] > heap[child+1])
+        child++;                                  
+      if (heap[i] > heap[child]) {
+        swap(heap, i, child); 
+        minheapSiftdown(heap, child, k); 
+      }
+    }
+  }
+
+  // In heap[0..k], move node heap[i] upwards by swapping with its
+  // parent until the heap invariant is reestablished.
+  public static void minheapSiftup(double[] heap, int i, int k) {
+    if (0 < i) {
+      int parent = (i - 1) / 2;
+      if (heap[i] < heap[parent]) {
+        swap(heap, i, parent); 
+        minheapSiftup(heap, parent, k); 
+      }
+    }
+  }
+}
+
+

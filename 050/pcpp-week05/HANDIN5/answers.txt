@@ -1,0 +1,253 @@
+Exercise 5.1.1
+See 5_1_1.txt for result of test runs of countParallelN1, countParallelN2 and countParallelN3 with newCachedThreadPool.
+
+Exercise 5.1.2
+See 5_1_2.txt for result of test runs of countParallelN1, countParallelN2 and countParallelN3 with newWorkStealingPool.
+
+
+Exercise 5.1.3 
+Se file 5_1_3.pdf
+
+Exercise 5.1.4 
+The bare bones Thread implementation is actually performing a little better than the Executor framwork on the first 32 iterations of the tasks, which is kind of surprising
+since Executors should provide better resource utilization. But it is important to note, that we only have data from the Thread implementation for the first 32 iterations, 
+while the Executor test ware run 100 times. It is very likely that the Executor based implementation will outperform the Thread implementation over time, when the costs of
+creating the Executor is distributed out over more iterations and the potentially poorer resource utilization gradually will start to effect the Thread implementation. 
+
+There was a fairly clear pattern in last weeks test suggesting that a number of threads dividable to the number of available cores on the computer provides better workload
+and therefore better overall performance. Whit the Executor service handling the available tasks I am not able to tell exactly how many Threads are live at different stages 
+of execution since this is run 'under the hood' of the Executor service. I could not find any method in API which allowed to query Executor service for this information...
+
+Exercise 5.1.5
+
+Scatter plot?
+
+(Exercise 5.2.1)
+(Exercise 5.2.2)
+(Exercise 5.2.3)
+(Exercise 5.2.4)
+(Exercise 5.2.5)
+
+Exercise 5.3.1 
+TestDownload.java is working :)
+
+Exercise 5.3.2
+
+public static Map<String, String> getPages(String[] myUrls, int maxLines) {
+	final HashMap<String, String> myHashMap = new HashMap<String, String>();
+    Timer t = new Timer();   
+	for ( String url : myUrls ) {
+		try {
+			//fetch page
+			String page = getPage(url, 10);
+			// put url in map
+			myHashMap.put(url, page);
+		}
+		catch (Exception e){
+			e.printStackTrace();	
+		}
+	}
+	//Get result in micro secs
+	double time = t.check() * 1e6 / myUrls.length(); 
+	return myHashMap;
+  }		
+  
+Exercise 5.3.3
+
+5 testruns - conducted right after each other. 
+200 lines from all 23 links were retrieved on each test run.
+
+With Executor = WorkStealingPool:
+257889,4 us
+258246,9 us
+231794,9 us
+391280,6 us
+656375,2 us
+
+Some fluctuation in the results with WorkStealingPool, but some results are very similar... 
+I had made the request once or twice before first test run so no extra look up time for DNS is registered.
+
+With Executor = CachedThreadPool:
+240542,6 us
+230542,0 us
+224906,7 us
+252091,4 us
+294928,7 us
+
+Very stable results with CachedThreadPool - a little faster than WorkStealingPool, but data set not large enough to substantiate any claims. 
+I got a couple of Premature EOF exceptions while running the tests - but only with this configuration...
+
+
+Exercise 5.3.4
+
+	public static Map<String, String> getPagesParallel(String[] myUrls) {
+		final HashMap<String, String> myHashMap = new HashMap<String, String>();
+		Map<String, Future<String>> futures = new HashMap<String, Future<String>>(); 
+		Timer t = new Timer(); 
+		for ( String url : myUrls ) {
+			//create future for exec
+			final String url1 = url;
+			futures.put(url, executor.submit( () -> getPage(url1, 200)
+			));
+		}
+		try { 
+			Iterator it = futures.entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry pair = (Map.Entry)it.next();
+				Future fut = (Future)pair.getValue();
+				String webpage = (String)fut.get();
+				myHashMap.put((String)pair.getKey(), webpage);				
+			}
+		}
+		catch (Exception exn) { 
+				System.out.println(exn); 
+		}  
+	double time = t.check() * 1e6 / myUrls.length;
+	System.out.printf("%6.1f us%n", time);
+	System.out.println(myHashMap.size());
+	
+	return myHashMap;		
+	}
+
+
+5 testruns - conducted right after each other. 
+200 lines from all 23 links were retrieved on each test run.
+
+With Executor = WorkStealingPool:
+119388,1 us
+128015,5 us
+117710,6 us
+125351,1 us
+116026,3 us
+
+
+With Executor = CachedThreadPool:
+59312,5 us
+70766,1 us
+69993,0 us
+64072,9 us
+60700,0 us
+
+The newCachedThreadPool seems to be performing much better than the newWorkStealingPool. CachedThreadPool does not impose any restrictions on the number of threads in pool, 
+it reuses idle threads for new tasks, and is as such very flexible and efficient up untill a certain workload, where this pattern becomes inefficient and unsustainable. 
+CachedThreadPool is described as 'a good default choice Executor in the textbook. The newWorkStealingPool must provide opportunity for threads to steal work from each other, 
+if there is an uneven distribution of work. As such it seems to be a more complex implementation than CachedThreadPool. The capabilities provided by newWorkStealingPool 
+may not be utilized fully in the context of this test - which might explain the poorer result.   
+
+Exercise 5.4.1
+
+TestPipeline.java is working...
+
+Exercise 5.4.2
+
+The important parts pf the implementation:
+(...)
+
+private static void runAsThreads() {
+    final BlockingQueue<String> urls = new OneItemQueue<String>();
+    final BlockingQueue<Webpage> pages = new OneItemQueue<Webpage>();
+    final BlockingQueue<Link> refPairs = new OneItemQueue<Link>();
+	final BlockingQueue<Link> uniqueLinks = new OneItemQueue<Link>();
+    Thread t1 = new Thread(new UrlProducer(urls));
+    Thread t2 = new Thread(new PageGetter(urls, pages));
+    Thread t3 = new Thread(new LinkScanner(pages, refPairs));
+	Thread t4 = new Thread(new Uniquifier(refPairs, uniqueLinks));
+    Thread t5 = new Thread(new LinkPrinter(uniqueLinks));
+	//Thread t4 = new Thread(new LinkPrinter(refPairs));
+    t1.start(); t2.start(); t3.start(); t4.start(); t5.start(); 
+  }
+  
+(...)
+
+class Uniquifier implements Runnable {
+	private final BlockingQueue<Link> input;
+	private final BlockingQueue<Link> output;
+	private final HashSet<Link> unique = new HashSet<Link>();
+	
+	public Uniquifier(BlockingQueue<Link> input, BlockingQueue<Link> output){
+		this.input = input;
+		this.output = output;
+	}
+	
+	public void run() { 
+    while (true) {
+      Link l = input.take();
+      if(unique.add(l)) output.put(l);
+	}
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  

@@ -1,0 +1,12 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T17:08:43+0200
+hashCode()                            3,1 ns       0,02  134217728
+Point creation                       56,5 ns       0,61    8388608
+Thread's work                      6631,0 ns     109,54      65536
+Thread create                       929,0 ns      27,39     524288
+Thread create start               72023,7 ns     543,67       4096
+Thread create start join         111301,6 ns     461,33       4096
+ai value = 1474500000
+Uncontended lock                      6,4 ns       0,09   67108864

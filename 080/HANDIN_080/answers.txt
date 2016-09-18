@@ -1,0 +1,210 @@
+EXERCISE 8
+
+8.1.1 TO DO
+
+Yes, my implementation of StripedWriteMap passes all tests :)
+
+The current version of testMap() touches upon all methods in the Striped Map implementation, but it does not cover all of the potential branches in remove method. Only the branch that removes an item from the   
+
+This means that none of the following outcomes are tested: 
+The item to remove is the first item in the bucket
+The item referenced by the remove method does not exist - and the bucket is current empty.
+The item referenced by the remove method does not exist, but the bucket contains other items with different keys. 
+
+
+I have added the following tests to testMap() in order to address these deficiencies.
+
+assert map.remove(111) == null; //try to remove from bucket with no items
+assert map.remove(217).equals("E"); //try to remove first item in bucket
+assert map.put(317, "Z") == null;
+assert map.remove(417) == null; //try to remove item with unknown key from bucket with items
+   
+
+All implementations of Striped Map still pass the sequential test.
+
+
+8.1.2
+
+For implementation of test method functionalTestOfMap() see code excert below or TestStripedMap.java (l. 179)  
+
+TEST INVARIANT: The accumulated result of all threads operations on the map should be equal to the size of the final map.
+
+When I run the test on StripedWriteMap, the result returned is not equal to the expected result (the size of the map).
+
+The question is now whether it is my implementation of the map or my test code that is fault?
+
+I run the test on the other 3 implementations of the map and can on that basis conclude that the test result here is as expected - count returns the size of the map. 
+
+This leads me to conclude, that there must be a bug in my implementation of StripedWriteMap :(  
+
+//EXERCISE 8.1.2
+//EXERCISE 8.1.2
+public static void functionalTestOfMap() {
+	OurMap<Integer, String> test3 = new WrapConcurrentHashMap<Integer,String>();
+	OurMap<Integer, String> test2 = new SynchronizedMap<Integer, String>(77);
+	OurMap<Integer, String> test1 = new StripedMap<Integer, String>(77, 7);
+	OurMap<Integer, String> test = new StripedWriteMap<Integer, String>(77, 7);
+	OurMap<Integer, String> UUT = test3; 
+	
+	
+	final int threadCount = 16;
+	ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
+	final CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+	//AtomicInteger counter = new AtomicInteger(0);
+	AtomicIntegerArray count = new AtomicIntegerArray(threadCount);
+	
+	for(int i = 0; i < threadCount; i++) {
+		final int l = i;
+		executorService.execute(new Runnable() {
+		    public void run() {
+		    	try {
+		    	//Threads wait until all ready
+		    	barrier.await();
+			//Every thread has own instance of randomizer to avoid 				synchronizing access to random, influencing tests...
+			Random rand = new Random();
+			// Run test 1000 times
+			for (int j = 0; j < 1000; j++) {
+				int key = rand.nextInt(100);
+			    	//add thread no as first value
+			    	String val = l + " : " + Integer.toString(key);
+			    	String put = UUT.put(key,val);
+			    	if (put == null) { //only count as extra if put is 								adding new key/val
+			    		count.getAndIncrement(l);
+			    	}
+			    	if (put != null) {
+			    	//if original put was made by other thread, remove 					count from this thread
+			    		String all[] = put.split("\\s+");
+			    		count.getAndDecrement(Integer.
+					valueOf(all[0]));
+			    		//increment thread making put
+			    		count.getAndIncrement(l);
+			    	}
+			    	int key2 = rand.nextInt(100);
+			    	String val2 = l + " : " + Integer.toString(key2);
+			    	String put_if_absent = UUT.putIfAbsent(key2,val2);  
+			    		 //if put_if_abs is successful, increment 						 counter for this thread
+			    	if (put_if_absent == null) {
+			    		count.getAndIncrement(l);
+			    		//no need to decrement from any thread
+			    	}
+			    	//Check if buckets contain...
+			    	Integer myKey = rand.nextInt(100); 
+			    	if(UUT.containsKey(myKey) == true) {
+			    		//System.out.println("Value collected: " + 						UUT.get(myKey));
+			    	}
+			    	String remove = UUT.remove(rand.nextInt(100));  			    		//if remove has found item to remove
+			    	if(remove != null ) {
+					//decrement counter for thread who signed this item 
+				    	String all[] = remove.split("\\s+");
+				       count.getAndDecrement(Integer.
+					valueOf(all[0]));
+				}
+			    	 
+			    }
+			    	
+			barrier.await();
+				   
+			}
+		    	catch (Exception e) {
+		    		e.printStackTrace();
+		    	}
+		    	 
+		    }
+		});
+
+	}
+	
+	
+	try {
+		barrier.await(); //await start
+		barrier.await(); //wait for threads to finish
+	} catch (InterruptedException e1) {
+		// TODO Auto-generated catch block
+		e1.printStackTrace();
+	} catch (BrokenBarrierException e1) {
+		// TODO Auto-generated catch block
+		e1.printStackTrace();
+	} 
+	
+	executorService.shutdown();
+	
+}
+
+
+8.1.3
+As mentioned in exercise 8.1.1 running the test on WrapConcurrentHashMap returns the expected result, so the functional testing does not find any flaws in this implementation so far.
+
+
+8.1.4
+
+//EXERCISE 8.1.4
+	System.out.println("EXERCISE 8.1.4");
+	UUT.forEach((k, v) -> {
+		String[] res = v.split("\\s+");
+		final int value = Integer.parseInt(res[0]);
+		int lowerBound = 0, myboolean;
+		
+		if(lowerBound <= value && value <= threadCount) { myboolean = 1;}
+		else {myboolean = 0;}
+		
+		switch (myboolean) {
+			case 0:
+			System.out.println("ENTRY HAS WRONG SIGNATURE " + value);
+			break;
+			case 1:
+			System.out.println("ENTRY - APPROVED SIGNATURE"  + value);
+		}	
+		
+	});
+	
+
+8.1.5
+
+I have chosen to implement count array as an AtomicIntegerArray in order to take advantage of existing implementation of synchronized access to shared variables. This is necessary because threads will be updating the count variable for other threads, when making put or remove operations. 
+
+//Exercise 8.1.5
+	System.out.println("EXERCISE 8.1.5");
+	System.out.println("SIZE OF MAP: " + UUT.size());
+	
+	//get totals from count array
+	int total = 0;
+	for (int i = 0; i < count.length(); i++) {
+		total += count.get(i);
+	}
+	
+	System.out.println("COUNT FROM THREADS: " + total);
+	
+	
+
+8.1.6
+Functional testing can be used to exercise current implementation in order to reassure ourselves, that the implementation returns the expected results. 
+
+Mutation testing can augment functional testing - it can be used to build our confidence in the test suite - and that it actually will register if the implementation is wrong...
+
+8.2
+I have chosen not to run the mutation tests on my implementation of StripedWriteMap as there is still a bug in it. It is hard to track this bug down as it does not manifest itself in the testMap method :( 
+
+The put if absent and remove works to spec, when I run testMap() - but seems that when I run the functional test, something is off: put if absent never returns null and remove never returns not null for StripedWriteMap. Maybe you can figure out whats going on?
+ 
+
+8.2.1
+
+I have removed the 'synchronization' part from the signature of the put method in SynchronizedMap, and the size of the map and the count from the threads are no longer a match (Exercise 8.1.5)
+
+I have removed the 'synchronization' block in the put method in StripedMap, and size of the map and the count from the threads are no longer a match (Exercise 8.1.5)   
+
+8.2.2
+I have change the target of synchronization from locks[stripe] to 'this' in the put method in StripedMap, and size of the map and the count from the threads are no longer a match (Exercise 8.1.5)   
+
+
+8.2.3
+I am not able to run this test because my StripedWriteMap implementation has a bug.
+
+8.2.4
+I am not able to run this test because my StripedWriteMap implementation has a bug.
+
+
+8.2.5
+I have thought a lot about this, but I cannot really think of any missing angles or approaches, that have not been tried above. 
+
+I don't see any point in injecting faults in some of the helper methods like search or delete, since this would be going beyond test of the Map implementation.

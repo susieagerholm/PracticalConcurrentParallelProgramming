@@ -1,0 +1,410 @@
+Exercise 4.1.1
+
+Preparation:
+All unnecessary programs have been shut down and all automatic updates have been turned off before performing any tests. 
+
+All tests have been performed running on main power. No power saving schemes are active. 
+
+All tests have been run from command line.
+
+System info:
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+
+
+mark0:
+The results are very close to the prediction in the textbook: 4927,0 ns
+Testing terminates after only one call to the method under test, which leaves the test vulnerable to distortion. Test returns a result that is too high to be realistic. 
+The test consists of only one call to the method, which makes it hard to distinguish between time spend to setting up execution and time spend doing actual execution.
+
+mark1:
+These results are also very close to the prediction in the textbook: 0,1 ns. Multiple runs of the method under test (1000.000.000) balances outliers in performance 
+and distributes time spend on setup on a larger set of runs. This means that set up costs moves towards 0 for each run. 
+
+Calculation of average result makes test more reliable, but result is too low to be plausible. 
+The dummy variable is not used, so it is likely that result is due to it being garbage collected before computation terminates... 
+
+mark2:
+Method under test is run 100.000.000 times and an average time for computation is found. Test code returns dummy variable in order to avoid garbage collection.
+Result is 35.5 ns - a little bit more than forecast in the text book, but seen in relation to later tests, time of computation seems to converge towards 35 ns, so it is plausible...
+
+mark3:
+Test of 100.000.000 calls to method under test is now run n number of times (n = 10) and an average time to compute is returned for each test run. 
+Fairly uniform result set with a small deviation around mean - lowest mark is 35.1 and highest 35.7. 
+
+We might think that the relatively small deviation adds to the credibility of results, but seen i relation to the calculated standard deviation from mark 4, there seems
+till to be room for improvement.
+
+  35,7 ns
+  35,3 ns
+  35,2 ns
+  35,7 ns
+  35,3 ns
+  35,5 ns
+  35,2 ns
+  35,2 ns
+  35,5 ns
+  35,1 ns
+
+
+mark4:
+A test consists of 100.000.000 calls to method under test and test is repeated 10 times. A mean for n tests is returned and a standard deviation is added to the result.  
+
+A mean of 35,2 ns with a standard deviation of +/- 0,112. 
+This means that 68,3% of test runs (in a test sample of representative size) will be within +/- 0,112 ns. of the mean - that is between 35,088 ns. and 35,312 ns. 
+94.5% of runs will be within +/- 2(0,112 ns.) of the mean - that is between 34,976 ns. and 35,424 ns.
+
+This calculated standard deviation is not completely reliable, if you compare with the summations of results from n tests from mark 3, which contains a very high 
+percentage of outliers from the suggested normal distribution of values. 
+
+The number of method calls (100.000.000) is by far large enough to be representative = to conform to normal distribution - so this deviation leaves the result 
+set from marks 3 rather unreliable, but unfortunately there is little to explain the deviation. Sequence of initialization of Timer, looping through the count and 
+checking Timer is identical in mark 3 and mark 4. (In mark 3 call to System.print is performed in the outer loop while in mark 4 call to System.print is performed 
+outside both loops, so these should have no effect on measurements. Only other difference is initialization of variables to help calculate mean and standard deviation,
+but neither of these can have any effect on performance of loop.)  
+
+
+mark5:
+I have run mark 5 several times and every time a spike in mean time and variation has presented itself around count 64. This may be due to garbage collection being 
+triggered at this point or maybe some analysis is performed by the JIT runtiem at this point in order to optimize the calculation. Unlike in mark 4, the JIT runtime 
+has not been told explicitly at compile time that the loop will be performed 100.000.000 times. The max value of the count variable is a result of the - at compile time 
+- unpredictable evaluation of the while loop. So maybe this spike is a result of the compiler analysing the loop for improvement of runtime performance...
+
+The result stabilises as number of runs increases and mean time converges towards 35.2 and variation towards 0,x. It is interesting to note, that results this time around
+seems to converge toward the suggested standard variation around mean - much more than was the case in earlier tests although the number of tests has decreased. This is 
+rather a counter intuitive result...
+
+ 451,6 ns +/-   927,13          2
+ 174,5 ns +/-    69,29          4
+ 148,8 ns +/-    81,88          8
+ 123,2 ns +/-    20,25         16
+ 139,8 ns +/-    62,69         32
+1022,5 ns +/-  3082,53         64
+  78,9 ns +/-    53,35        128
+  49,1 ns +/-    11,59        256
+  60,1 ns +/-     4,45        512
+  48,0 ns +/-     9,65       1024
+  43,8 ns +/-     0,19       2048
+  42,0 ns +/-     2,35       4096
+  41,2 ns +/-     0,61       8192
+  40,1 ns +/-     2,13      16384
+  40,2 ns +/-     2,96      32768
+  35,2 ns +/-     0,36      65536
+  35,1 ns +/-     0,12     131072
+  35,1 ns +/-     0,06     262144
+  35,1 ns +/-     0,02     524288
+  35,2 ns +/-     0,10    1048576
+  35,5 ns +/-     0,89    2097152
+  35,2 ns +/-     0,04    4194304
+  35,3 ns +/-     0,28    8388608
+
+
+mark6:
+In this version a functional interface has been added to channel the call to multiply method. The spike around 64 counts has disappeared. This suggests that the spike is
+not related to loop optimation, but rather to the call to multiplicity and specifically any attempted garbage collection performed in relation to this method call (although
+I cannot come up with any good, coherent explanation as to why the use of the function interface should minimize garbage collection....)
+
+Initialization cost in the first run is rather high this time round, which might be related to the use of a functional interface for computation. 
+
+multiply                          35881,9 ns  110455,69          2
+multiply                            195,0 ns     122,92          4
+multiply                            195,0 ns     107,65          8
+multiply                            192,5 ns     116,80         16
+multiply                            166,8 ns      72,07         32
+multiply                             62,9 ns      21,97         64
+multiply                             75,7 ns      55,02        128
+multiply                             56,9 ns      10,07        256
+multiply                             75,6 ns       2,17        512
+multiply                             50,4 ns       0,62       1024
+multiply                             50,3 ns       0,23       2048
+multiply                             50,5 ns       0,82       4096
+multiply                             41,5 ns       1,12       8192
+multiply                             41,5 ns       1,08      16384
+multiply                             42,1 ns       2,41      32768
+multiply                             38,2 ns       1,75      65536
+multiply                             35,4 ns       0,39     131072
+multiply                             35,1 ns       0,13     262144
+multiply                             35,1 ns       0,02     524288
+multiply                             35,1 ns       0,06    1048576
+multiply                             35,8 ns       1,97    2097152
+multiply                             35,2 ns       0,22    4194304
+multiply                             35,4 ns       0,50    8388608
+
+
+Exercise 4.1.2
+By and large the results follow the pattern suggested by the textbook. Function exp is much less expensive in time than the pow function - even with a relatively large standard deviation.  
+The least expensive is the log function with also has the smallest standard deviation.
+
+As suspected the trigonometric functions are by far the most expensive.
+
+Most noticeable difference from text book is that the calculated standard deviations are much smaller than suggested, but I have no good explanation why that is.
+
+The test has also been performed on a Mac. This implementation deviates a bit from the pattern identified on Windows machines in the sense that some of the trigonometric
+functions are performing much better in this context...
+ 
+System info:
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+pow                                  88,2 ns       0,06    4194304
+exp                                  64,9 ns       1,67    4194304
+log                                  27,9 ns       0,04   16777216
+sin                                 123,0 ns       0,09    2097152
+cos                                 130,2 ns       0,25    2097152
+tan                                 157,7 ns       0,21    2097152
+asin                                271,9 ns       0,56    1048576
+acos                                261,2 ns       0,91    1048576
+atan                                 48,4 ns       0,09    8388608
+
+
+
+# OS:   Mac OS X; 10.7.5; x86_64
+# JVM:  Oracle Corporation; 1.8.0_20
+# CPU:  null; 8 "cores"
+# Date: 2015-09-24T21:51:00+0200
+pow                                  79.4 ns       0.17    4194304
+exp                                  57.6 ns       0.24    8388608
+log                                  25.5 ns       0.22   16777216
+sin                                  50.0 ns       0.11    8388608
+cos                                  50.1 ns       0.07    8388608
+tan                                  76.3 ns       0.31    4194304
+asin                                238.2 ns       0.60    1048576
+acos                                220.7 ns       0.83    2097152
+atan                                 54.5 ns       0.16    8388608
+
+
+Exercise 4.2.1
+
+Hashcode: Measuring time spend to create hashcode from Point object - converging towards 3.1 ns. Standard deviaiton goes towards 0 as count increases. 
+Accelleration of speed with amount of objects is probably due to the fact that the initial costs are spred over multiple objects.  
+Strange drop and spike in the middle of the graph might be due to analysis by JIT runtime or garbage collection.
+
+Point creation: Measuring time spend to create a Point object - converging towards 52-53 ns. Standard deviation is moving downwards as count increased but with some uncertainty.                      
+Accelleration of speed with amount of objects is probably due to the fact that the initial costs are spred over multiple objects.  
+
+It might seem a little counter intuitive that calculation of a hash value is 17 times faster than creating a simple object but I guess this is due to the fact that objects
+have a much larger memory foot print than primitives.
+
+Thread's work: Measuring time spend while the thread is running through the loop - converging towards 6600 ns. You would expect something like a loop to be something, that
+the JIT runtime would be very good at optimizing. Running time is improved by factor 13 from start to finish.
+
+Thread create: Measuring time spend to create a Thread object - converging towards 1000 ns, but with large oscillations in standard deviation. As expected this has a rather 
+high cost compared to a simple object like Point - a Thread is approximately 20 times as expensive to create as a Point object.                      
+  
+Thread create start: Measuring time spend to create a Thread object and start execution of this Thread (run) - converging towards 75055 ns. Calling start on a thread is a 
+very expensive operation - creating the thread only costs around 6600 ns, so the big increment in cost most be incurred when calling start. Maybe related to the overhead  
+of changing context of thread to execution environment???
+
+Thread create start join: Measuring time spend to create a Thread object, start execution of it (run) and waiting for it to finish it's task and return (die). One would 
+expect this to be the sum of 'Hashcode', 'Thread's work' and 'Thread create start', but it is not. It is a much more expensive operation - converging towards 114000 ns. 
+Maybe this is due to the fact that the operation is now not performed sequentially on the main thread, but in a multi thread context. This might add to the cost of overall 
+operations? 
+
+Uncontended lock: Measuring time spend to acquire a lock - coverging towards 4.9 ns. with standard deviation going towards 0. Compared to the perceived complexity of the 
+synchronized feature this seems a very small cost - but need to keep in mind that once lock is contended time to acquire might be substantially higher...       
+
+Exercise 4.2.2
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T17:08:43+0200
+
+hashCode()                            3,1 ns       0,02  134217728
+Point creation                       56,5 ns       0,61    8388608
+Thread's work                      6631,0 ns     109,54      65536
+Thread create                       929,0 ns      27,39     524288
+Thread create start               72023,7 ns     543,67       4096
+Thread create start join         111301,6 ns     461,33       4096
+ai value = 1474500000
+Uncontended lock                      6,4 ns       0,09   67108864
+
+Results are very close to the ones reported in the lecture - not much further to comment on...
+
+
+Exercise 4.3.1
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T22:55:54+0200
+
+countSequential                   12712,0 us      21,28         32
+countParallelN      1             11136,1 us      18,02         32
+countParallelN      2              7595,3 us     119,95         64
+countParallelN      3              6733,2 us      81,15         64
+countParallelN      4              5781,5 us      31,23         64
+countParallelN      5              6071,5 us      36,32         64
+countParallelN      6              6062,0 us      48,66         64
+countParallelN      7              6169,9 us     362,18         64
+countParallelN      8              5547,2 us      15,83         64
+countParallelN      9              5649,1 us      34,75         64
+countParallelN     10              5727,3 us      45,06         64
+countParallelN     11              5639,6 us      45,37         64
+countParallelN     12              5576,3 us       8,92         64
+countParallelN     13              5682,4 us      18,19         64
+countParallelN     14              5726,9 us      20,51         64
+countParallelN     15              5728,8 us      14,25         64
+countParallelN     16              5721,8 us      34,51         64
+countParallelN     17              5906,4 us     292,23         64
+countParallelN     18              5767,5 us      22,22         64
+countParallelN     19              5780,5 us      21,68         64
+countParallelN     20              5881,2 us      20,90         64
+countParallelN     21              6012,2 us      15,46         64
+countParallelN     22              6048,0 us      62,29         64
+countParallelN     23              6029,5 us      33,61         64
+countParallelN     24              6119,5 us      25,25         64
+countParallelN     25              6631,6 us     465,12         64
+countParallelN     26              6318,9 us      41,30         64
+countParallelN     27              6296,7 us      28,95         64
+countParallelN     28              6344,1 us      17,33         64
+countParallelN     29              6418,9 us      24,67         64
+countParallelN     30              6460,2 us      32,67         64
+countParallelN     31              6461,9 us       9,50         64
+countParallelN     32              6545,3 us      11,43         64
+
+Exercise 4.3.2
+See 4_3_2.pdf
+
+Exercise 4.3.3
+
+The optimal configuration of threads allows the task to be performed at around 5500 microseconds. It is rather surprising that the optimal performance is reached with a 
+relatively low number of threads (8-12) - but this must be due to the overhead incurred by having many active threads. The high cost of creating and start a thread must
+be distributed over a larger number of tasks in order to make sense.
+
+Computation is performed on a PC with 4 cores. Configurations in the 'healthy zone' with a number of thread dividable by number of cores (4, 8, and 12 )seems to perform 
+marginally better than neighbors possible due to a more fair distribution of tasks on the cores and therefore a more efficient execution.   
+
+Spikes in standard deviation may be incurred due to analysis by JIT or garbage collection.
+
+Exercise 4.3.4
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T23:06:51+0200
+
+countSequential                   12736,5 us      43,12         32
+countParallelN      1             11061,5 us     200,33         32
+countParallelN      2              7318,1 us     309,37         32
+countParallelN      3              7566,1 us     117,51         64
+countParallelN      4              7032,6 us      42,12         64
+countParallelN      5              7244,8 us      67,00         64
+countParallelN      6              7297,4 us      41,78         64
+countParallelN      7              7441,6 us     392,37         64
+countParallelN      8              6792,7 us      49,65         64
+countParallelN      9              6780,3 us      19,03         64
+countParallelN     10              6974,5 us      46,19         64
+countParallelN     11              6850,4 us      31,43         64
+countParallelN     12              6850,0 us      66,75         64
+countParallelN     13              6880,2 us      36,28         64
+countParallelN     14              7258,9 us     403,55         64
+countParallelN     15              6928,7 us      18,11         64
+countParallelN     16              6883,0 us      46,93         64
+countParallelN     17              6951,2 us      73,83         64
+countParallelN     18              6924,5 us      24,17         64
+countParallelN     19              6962,2 us      98,32         64
+countParallelN     20              7024,3 us       9,99         64
+countParallelN     21              7154,1 us      17,18         64
+countParallelN     22              7171,1 us      32,46         64
+countParallelN     23              7145,3 us      23,35         64
+countParallelN     24              7222,1 us      19,40         64
+countParallelN     25              7355,1 us      27,27         64
+countParallelN     26              7421,2 us      30,69         64
+countParallelN     27              7399,5 us      34,80         64
+countParallelN     28              7810,0 us     342,65         64
+countParallelN     29              7552,3 us      14,91         64
+countParallelN     30              7552,1 us      14,41         64
+countParallelN     31              7613,3 us      46,13         64
+countParallelN     32              7659,3 us      36,92         64
+
+Surprisingly enough the performance of the built in class AtomicLong is not better than the custom LongCounter class. You would expect that built in classes would 
+outperform custom classes by far, but maybe for a relatively simple implementation like this, it is not the case. When I comes to more complex implementations like 
+handling Collections, I am sure built in classes are by far the most efficient... 
+
+Exercise 4.3.5
+
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-24T18:27:40+0200
+
+countSequential                   12727,2 us      17,87         32
+countParallelLocal      1         12992,6 us      17,06         32
+countParallelLocal      2          8661,1 us      75,39         32
+countParallelLocal      3          8198,6 us     189,99         32
+countParallelLocal      4          6635,4 us      37,31         64
+countParallelLocal      5          6678,7 us      72,21         64
+countParallelLocal      6          6688,4 us      55,94         64
+countParallelLocal      7          6542,8 us      43,56         64
+countParallelLocal      8          6411,5 us      25,93         64
+countParallelLocal      9          6535,8 us      24,41         64
+countParallelLocal     10          6531,5 us      28,76         64
+countParallelLocal     11          6500,9 us      28,99         64
+countParallelLocal     12          6466,3 us      23,77         64
+countParallelLocal     13          6570,7 us      24,03         64
+countParallelLocal     14          6587,2 us      17,65         64
+countParallelLocal     15          7010,8 us     318,91         64
+countParallelLocal     16          6578,7 us      25,32         64
+countParallelLocal     17          6651,5 us      23,30         64
+countParallelLocal     18          6669,4 us      59,49         64
+countParallelLocal     19          6643,7 us      14,46         64
+countParallelLocal     20          6724,8 us      18,96         64
+countParallelLocal     21          6838,4 us      12,44         64
+countParallelLocal     22          6863,2 us      23,35         64
+countParallelLocal     23          7676,2 us      33,05         64
+countParallelLocal     24          7709,4 us      22,54         64
+countParallelLocal     25          9072,2 us     531,03         32
+countParallelLocal     26          7391,8 us      30,50         64
+countParallelLocal     27          7483,0 us      71,74         64
+countParallelLocal     28          7697,2 us      35,19         64
+countParallelLocal     29          7798,9 us       9,94         64
+countParallelLocal     30          7982,8 us      53,53         32
+countParallelLocal     31          8006,9 us      24,68         32
+countParallelLocal     32          8224,4 us      30,01         32
+
+
+The local variable version does not perform better than the shared synchronized variable. This seems slightly counter intuitive as you would expect that the creation and 
+update of a primitive local variable would be less expensive than using synchronization. It certainly suggests that there is very little wait to access the synchronized 
+var in the shared version - requiring an uncontented lock is a very cheap operation as we have seen earlier. The local var version adds a slight overhead due to the fact, 
+that you have to create a results array to hold the result from the respective local variables and loop through this array to get the accumulated result - but it seems 
+unlikely that this is expensive enough to influence the overall result...      
+
+Exercise 4.4.1
+ExerciseMemoizer1                 48712,3 us     859,14          8
+
+Exercise 4.4.2
+ExerciseMemoizer2                 13405,3 us     234,71         32
+
+Exercise 4.4.3
+ExerciseMemoizer3                 15272,8 us     293,01         32
+
+Exercise 4.4.4 
+ExerciseMemoizer4                 14941,6 us     311,33         32
+
+Exercise 4.4.5 
+ExerciseMemoizer5                 24958,3 us     688,42         16
+
+Exercise 4.4.6 
+There is no Memoizer0???
+
+Exercise 4.4.7 
+It is a little surprising that Memoizer3 and Memoizer4 which aims to eliminate the problem of duplicate computations performs a little worse than Memoizer2. This might be 
+because the overhead of duplicate computations in Memoizer2 in this context is not as big af the expense to create the various Future objects that might be quite expensive 
+investments considering the large expense incurred when creating and starting other complex objects like Threads...
+
+
+Exercise 4.4.8 
+First I would identify the different parameters, that would be considered relevant to the performance of the cache implementation like the amount of threads, intensity of 
+workload, frequency of overlapping input, expense of computation etc. and then I would perform a series of tests, where I systematically mix up the different parameters. 
+Some cache implementations might deliver the best performance in one particular context, while being of no use in a different context...     
+ 
+
+
+
+
+
+
+
+

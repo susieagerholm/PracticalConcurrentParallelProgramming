@@ -1,0 +1,398 @@
+//9.1.1
+Program usually deadlocks right away - but if I add some sysout println, transactions will start but seldom run to final state...
+I guess this is due to the sysout println disturbing the timing of the calls, so deadlock occurs less frequently... 
+
+//9.1.2
+No, transferE and balanceSumE does not deadlock on my computer - not even if I increase number of transfers to 20_000_000. 
+
+//9.1.3
+
+Yes, code still works - and no deadlocks...
+
+// This is thread-safe but may deadlock; takes the locks in the
+  // order determined by the Account object's hashCode.  May deadlock
+  // in (the rare) case distinct objects get identical hashcodes; this
+  // case may be handled using a third lock, as in Goetz p. 209.
+  public void transferE(Accountt that, final long amount) {
+    Accountt ac1 = this, ac2 = that;
+    if (System.identityHashCode(ac1) < System.identityHashCode(ac2))
+      synchronized (ac1) { synchronized (ac2) { // ac1 <= ac2
+          ac1.balance = ac1.balance - amount;
+          ac2.balance = ac2.balance + amount;
+        } }
+    else if (System.identityHashCode(ac1) > System.identityHashCode(ac2))
+      synchronized (ac2) { synchronized (ac1) { // ac2 < ac1
+          ac1.balance = ac1.balance - amount;
+          ac2.balance = ac2.balance + amount;
+        } }
+    else {
+    	synchronized(TestAccountLockOrder.tieLock) {
+    		synchronized(ac1) { synchronized(ac2) {
+    			ac1.balance = ac1.balance - amount;
+    		    ac2.balance = ac2.balance + amount;
+    		} }
+    	}
+    }
+  }
+
+  public static long balanceSumE(Accountt ac1, Accountt ac2) {
+    if (System.identityHashCode(ac1) < System.identityHashCode(ac2))
+      synchronized (ac1) { synchronized (ac2) { // ac1 <= ac2
+          return ac1.balance + ac2.balance;
+        } }
+    else if (System.identityHashCode(ac1) > System.identityHashCode(ac2))
+      synchronized (ac2) { synchronized (ac1) { // ac2 < ac1
+          return ac1.balance + ac2.balance;
+        } }
+    else {
+    	synchronized(TestAccountLockOrder.tieLock) {
+    		synchronized (ac1) { synchronized (ac2) { // ac1 <= ac2
+                return ac1.balance + ac2.balance;
+            } }
+    	}
+    }
+  }
+
+
+//9.1.4
+No! If we did that, we would in effect make all moneyTransfers execute sequentially, because all transactions would require 
+the tielock, which is defined as a static member. This would be really bad for performance. Only transactions where the two 
+accounts cannot be properly ordered based on the hashed value, should be executed sequentially!
+
+
+//9.2.1
+The program may deadlock in a situation where all philoosophers try to eat at the same time: They pick up the fork to the left
+and attempt to picks up the fork to the right, but this fork has already been taking by the neighbour to the right (the fork 
+to the right is his fork to the left). All philosophers stop their run with one fork in hand unable to continue their run or 
+break out of their current action. There is no protocol described to order the action to acquire the forks in an ordered way
+such that deadlocks as the one described are avoided.
+
+//9.2.2
+The program does not deadlock with the default configuration of five philosophers. If I lower the count to three philosophers,
+the deadlock happens within a few seconds...
+
+//9.2.3
+Output from JVM Visual:
+
+Found one Java-level deadlock:
+=============================
+"Thread-2":
+  waiting to lock monitor 0x0000000002e15698 (object 0x00000000d5d62148, a Fork),
+  which is held by "Thread-0"
+"Thread-0":
+  waiting to lock monitor 0x0000000002e141f8 (object 0x00000000d5d62158, a Fork),
+  which is held by "Thread-1"
+"Thread-1":
+  waiting to lock monitor 0x0000000002e12bf8 (object 0x00000000d5d62168, a Fork),
+  which is held by "Thread-2"
+
+Java stack information for the threads listed above:
+===================================================
+"Thread-2":
+	at Philosopher.run(TestPhilosophers.java:44)
+	- waiting to lock <0x00000000d5d62148> (a Fork)
+	- locked <0x00000000d5d62168> (a Fork)
+	at java.lang.Thread.run(Unknown Source)
+"Thread-0":
+	at Philosopher.run(TestPhilosophers.java:44)
+	- waiting to lock <0x00000000d5d62158> (a Fork)
+	- locked <0x00000000d5d62148> (a Fork)
+	at java.lang.Thread.run(Unknown Source)
+"Thread-1":
+	at Philosopher.run(TestPhilosophers.java:44)
+	- waiting to lock <0x00000000d5d62168> (a Fork)
+	- locked <0x00000000d5d62158> (a Fork)
+	at java.lang.Thread.run(Unknown Source)
+
+Found 1 deadlock.
+
+//9.2.4
+
+TestPhilosophers does not deadlock with this implementation of run method, that ensures, that the deadlock-
+circle is broken through a protocol for ordered use of forks...
+
+public void run() {
+    while (true) {
+      // Take the two forks to the left and the right	
+      int left = place, right = (place+1) % forks.length;
+      if(left < right) {
+    	  synchronized (forks[left]) {
+    	        synchronized (forks[right]) {
+    	          // Eat
+    	          System.out.print(place + " " + "\n");
+    	        }
+    	  }  
+      }
+      else {
+    	  synchronized (forks[right]) {
+    	        synchronized (forks[left]) {
+    	          // Eat
+    	          System.out.print(place + " " + "\n");
+    	        }
+    	  }
+      }
+      // Think
+      try { Thread.sleep(10); }
+      catch (InterruptedException exn) { }
+    }
+  }
+
+//9.2.5
+
+This implementation of run method does not deadlock on my hardware :)
+
+//run with reentrant lock
+  public void run() {
+	    while (true) {
+	      // Take the two forks to the left and the right	
+	      int left = place, right = (place+1) % forks.length;
+	      //Get left and right fork
+	      	if(forks[left].tryLock()) {		
+	      		try {
+	      			if(forks[right].tryLock()) {
+	      				try {
+	      					// Eat
+	      					System.out.print(place + " " + "\n");
+	      				} finally {
+	      					forks[right].unlock();
+	      				}
+	      			}
+	      		}
+	      		finally {
+	      			forks[left].unlock();
+	      		}
+	      	}
+	      
+	      // Think
+	      try { Thread.sleep(0, (int) (500 * Math.random())); }
+	      catch (InterruptedException exn) { }
+	    }
+  }
+
+//9.2.6
+It seems that the scheduler is doing a pretty good job of letting the philosopher get to eat in a fair manner,
+but I understand that fairness is by no means something one can count upon when writing concurrent applications. 
+
+10 seconds passed...
+Philosopher 0 has eaten 6682 times...
+Philosopher 1 has eaten 6885 times...
+Philosopher 2 has eaten 7194 times...
+10 seconds passed...
+Philosopher 0 has eaten 13232 times...
+Philosopher 1 has eaten 13753 times...
+Philosopher 2 has eaten 14120 times...
+10 seconds passed...
+Philosopher 0 has eaten 19766 times...
+Philosopher 1 has eaten 20281 times...
+Philosopher 2 has eaten 20975 times...
+10 seconds passed...
+Philosopher 0 has eaten 25842 times...
+Philosopher 1 has eaten 26042 times...
+Philosopher 2 has eaten 26584 times...
+10 seconds passed...
+Philosopher 0 has eaten 31886 times...
+Philosopher 1 has eaten 31817 times...
+Philosopher 2 has eaten 32181 times...
+10 seconds passed...
+Philosopher 0 has eaten 37986 times...
+Philosopher 1 has eaten 38019 times...
+Philosopher 2 has eaten 38849 times...
+10 seconds passed...
+Philosopher 0 has eaten 45068 times...
+Philosopher 1 has eaten 44430 times...
+Philosopher 2 has eaten 46040 times...
+....
+
+//9.3.1
+The optimal and most performant solution would be to synchronize on individual items in the HashedList, which is composed of a Set 
+and a List datastructure, which are synchronized. The most obvious items to use as primaries in a locking scheme are the items in 
+the set, which is used to test for various scenarios via the contains method - and afterwards locking a corresponding item in the 
+list. But the problem is, that the set does not leave us with any method to grab and lock on individual items. So this finegrained 
+approach is of little use - we need to lock on the whole list...
+
+This leaves me with the choice between locking on the whole of the HashedList or on the itemSet and itemList individually. In order 
+to preserve the invariant, that itemSet.size() and itemList.size() are always equal, we will have to always lock on both itemSet and 
+itemList. 
+
+If we were to introduce a locking scheme based on locking itemSet and itemList respectively, we would also have to make sure that 
+the locks were acquired in the same order every time (itemList before itemSet or vice versa), or we would run the risk of a deadlock 
+occuring, because two different threads can hold lock 1 and lock 2 respectively.  
+
+I have chosen to lock on the HashedList by adding the synchronized keyword to all methods in the class. This means, that only one of
+the thread can access any of the methods on the class at a time. This is coursegrained and probably not performant solution, but it 
+is a fairly simple implementation :)
+
+
+9.3.2
+All variables in invariant must be guarded by the same lock, so we need some kind of locking scheme, that synchronizes actions on 
+itemList and itemList collectively, not individually. Even if building on synchronizedList and synchronizedSet respectively, it would 
+still be possible for one thread to be operating on the itemList while another thread is operating on the itemSet - breaking 
+synchronization invariant between the two datastructures. This is why it will be of no use to implement with native classes from the 
+synchronized collection. 
+
+9.3.3
+
+Implementation of ForEach method is tricky because it will be prone to deadlock if you establish threadsafety by synchronizing on the 
+list or individual items on the list. If two HashedLists call ForEach they will both be locked individually - waiting to access the 
+other list... 
+
+
+//9.4.1
+
+No. Mystery class does not appear to be thread-safe. 
+
+Program returns the following results:
+"Sum is 1879503,000000 and should be 2000000,000000"
+"Sum is 1564357,000000 and should be 2000000,000000"
+"Sum is 1793090,000000 and should be 2000000,000000"
+"Sum is 1626364,000000 and should be 2000000,000000"
+"Sum is 1684974,000000 and should be 2000000,000000"
+
+//9.4.2
+The synchronized keyword has the effect, that only one thread can access a synchronized method at a time. Oracles tutorial on synchronization 
+says, that: 
+
+	"(...)it is not possible for two invocations of synchronized 	
+	methods on the same object to interleave. When one thread is 	
+	executing a synchronized method for an object, all other
+ 	threads that invoke synchronized methods for the same object 	
+	block (suspend execution) until the first thread is done 	
+	with the object".
+
+Synchronization also usually ensures visibility of all updates, when the threads are acting on instances of the given object. But in this case, 
+the two synchronized methods act on an instance and a static class respectively, so the synchronized keyword has no effect! 
+
+Synchronization also does not entail any locking of other shared variables accessed via the method!
+
+
+//9.4.3
+
+TestLocking0 is made thread-safe by guarding the shared variable sum with myLock. 
+
+Program now returns the following statement:
+"Sum is 2000000,000000 and should be 2000000,000000"
+"Sum is 2000000,000000 and should be 2000000,000000"
+"Sum is 2000000,000000 and should be 2000000,000000"
+"Sum is 2000000,000000 and should be 2000000,000000"
+"Sum is 2000000,000000 and should be 2000000,000000"
+
+The result suggests, that TestLocking0 is now thread-safe.
+
+// For week 9
+// sestoft@itu.dk * 2015-10-29
+
+public class TestLocking0 {
+  public static void main(String[] args) {
+    
+    final int count = 1_000_000;
+    Mystery m = new Mystery();
+    Thread t1 = new Thread(() -> { 
+	for (int i=0; i<count; i++)
+	  m.addInstance(1); 
+      });
+    Thread t2 = new Thread(() -> { 
+	for (int i=0; i<count; i++)
+	  m.addStatic(1); 
+      });
+    t1.start(); t2.start();
+    try { t1.join(); t2.join(); } catch (InterruptedException exn) { }
+    System.out.printf("Sum is %f and should be %f%n", m.sum(), 2.0 * count);
+  }
+}
+
+class Mystery {
+  private static double sum = 0;
+  private static Object myLock = new Object();
+  
+  public static void addStatic(double x) {
+    synchronized(myLock) {
+    sum += x;
+    }  
+  }
+
+  public synchronized void addInstance(double x) {
+    synchronized(myLock) {
+    sum += x;
+    }  
+  }
+
+  public static synchronized double sum() {
+    synchronized(myLock) {
+    return sum;
+    }  
+  }
+}
+
+//9.5.1
+
+Apart from implementing TestLocking1 as a wrapper around a native concurrent/synchronized list implementaiton in java, the easiest way to 
+achieve threadsafety would be to synchronize all method signatures.
+
+As mentioned above synchronization means, that only one thread at a time can access one of the synchronized methods - all other threads pause, 
+while this thread is inside a synchronized method - and all changes to shared variables will be made visible to other threads when this thread 
+leaves the synchronized 'zone'.
+
+I have made a small change to main class in order to prove, that synchronizing all methods actually achieves thread safety.
+
+public static void main(String[] args) {
+    DoubleArrayList dal1 = new DoubleArrayList();
+    
+    final int count = 1_000_000;
+    
+    Thread t1 = new Thread(() -> { 
+    	Random r = new Random();
+    	for (int i=0; i<count; i++) {
+    	  dal1.add(r.nextDouble()); 
+    	  dal1.get(r.nextInt(dal1.size()));
+    	  dal1.set(r.nextInt(dal1.size()), r.nextDouble());	
+    	  System.out.println("cycle done! size is: " + dal1.size()); 
+    	}
+    });
+        Thread t2 = new Thread(() -> { 
+        Random m = new Random();	
+    	for (int i=0; i<count; i++) {
+    	  dal1.add(m.nextDouble()); 
+    	  dal1.get(m.nextInt(dal1.size()));
+    	  dal1.set(m.nextInt(dal1.size()), m.nextDouble());
+    	} 
+    	});
+        t1.start(); t2.start();
+        try { t1.join(); t2.join(); } catch (InterruptedException exn) { }
+        System.out.println("Size er: " + dal1.size() + " og bør være " + 2 * count);
+  }  
+
+//9.5.2
+This approach will scale rather poorly. An add operation on a full array will scale at linear time which can be hardly be said to be a satisfying result. 
+It follow that synchronizing all methods should only be used as a starting point in order to develop a more finely grained locking scheme.
+
+One possible solution could be to differentiate between read and write locks. All idempotent operations link size() and get() require a read lock, that 
+can be shared by many threads - while a write lock is something that must be obtained exclusively by a thread. The problem with this approach is how to 
+achieve fairness so that none of the operations are starved.
+
+Another approach would be to generate a lock for every item in the array, so that the locking can be applied on an item basis. This operation requires 
+some scheme to make all other operations yield for an add operation to a full array, since this requires the locks for all items in the array. Yet 
+another approach along these lines would be to divide the array into subsections (stripes), which can be locked individually.    
+
+//9.5.3
+
+Locks are meant to safeguard access to shared variables, not individual methods - so this method will not work. 
+
+You must use the shared variable, that you wish to protect as lock - or make sure that this shared variable is only accessible through this particular 
+method, that is guarded by the lock. The shared variables access through the method guarded by this kind of locking scheme will still be accessible to
+other threads while the lock is in use. A thread can acquire addLock while another thread simultaneiously acquires setLock, and they will still be able 
+to access the items array concurrently, sinde this shared variable is not protected by the lock.  
+
+
+This approach will also not achieve visibility, since the promise of immediate visibility of changes after a synchronized method is exited, is also 
+bound to changes made to the object, that is used as lock.
+
+//9.5.4
+Since the shared variable that is to be protected is the items list, it will have to be the same lock, that protects access to it - so the many different
+locks have to be substituted by one lock. 
+
+//9.6.1
+//9.6.2
+
+
+
+

@@ -1,0 +1,62 @@
+Exercise 7.1.1
+
+See TestFetchWebGui2.java.
+
+I have chosen to implement version 1 for the reasons mentioned in the assignment: It seems like a more elegant 
+solution to take full advantage of SwingWorker and no need to worry about thread safety of operations like publish.
+
+As far as I can see SwingWorker documentation does not say anything speciifically about the threadsafety of the 
+class as a whole or the individual methods, but publish() delivers results to progress() via some kind of List. 
+We do not know which kind of concrete implementation is used for this List object so we cannot make any guarantees 
+as to the threadsafety of the operation, if two threads choose to update the List concurrently. 
+
+
+Exercise 7.1.2
+
+See TestFetchWebGui2.java.
+
+In think it would have been a more 'clean' solution to make the cancel/interrupted events from individual SwingWorkers 
+bubble up to DownloadWorkerManager, but I could not figure out how to do this :)
+
+Exercise 7.1.3
+
+See TestFetchWebGui2.java.
+
+Exercise 7.2.1
+
+The implementation is threadsafe because all access to non threadsafe GUI elements is done by single main thread - 
+all accessing classes including Lift Controller runs on this thread. 
+
+All access to shared variables (stops[], direction, floor, etc ) in the Lift class, which might potentially be interleaved by
+concurrent threads, is protected by synchronized access at the method level. Access to synchronized methods is coordinated 
+from run() method of Lift class..
+
+Helper methods like OpenCloseDoors() is accessed through non-synchronized method - implicit invariant??
+
+
+Exercise 7.2.2
+
+Apply the ThreadSafe tool to the simulation program. Does it report any potential problems?
+
+Exercise 7.2.3
+
+Change LiftController to handle system with new spec: 4 lifts and 10 floors
+
+Update GUI to reflect the new system - basically copy/paste
+
+Update time to serve algorithm to consider the two 'subsystems' individually (request made to liftpair 1's upDownBtns are 
+processed seperately from requests made to liftpair2. Change by addition of a simple parameter seemed a better choice than 
+trying to change the existing algorithm in timeToServe() to consider N lifts...I hope you agree :)  
+
+
+Exercise 7.2.4
+
+
+
+Exercise 7.2.5
+
+Observer pattern is used to implement this feature. InsideLiftButtons class plays role of Observer while Lift class is Observable.
+
+setChanged();
+    notifyObservers((int)floor);
+    clearChanged();

@@ -1,0 +1,13 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-22T19:48:39+0200
+pow                                  88,2 ns       0,06    4194304
+exp                                  64,9 ns       1,67    4194304
+log                                  27,9 ns       0,04   16777216
+sin                                 123,0 ns       0,09    2097152
+cos                                 130,2 ns       0,25    2097152
+tan                                 157,7 ns       0,21    2097152
+asin                                271,9 ns       0,56    1048576
+acos                                261,2 ns       0,91    1048576
+atan                                 48,4 ns       0,09    8388608

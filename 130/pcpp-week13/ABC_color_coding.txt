@@ -1,0 +1,55 @@
+-module(helloworld).
+-export([start/0,
+ account/1,bank/0,clerk/0]).
+%% -- BASIC PROCESSING -------------------
+	n2s(N) -> lists:flatten( %% int2string
+	io_lib:format("~p", [N])). %% HACK!
+	random(N) -> random:uniform(N) div 10.
+%% -- ACTORS -----------------------------
+<actor>account(Balance) ->
+	receive
+		{deposit,Amount} ->
+			account(Balance+Amount) ; %recursive call
+			{printbalance} ->
+				io:fwrite(n2s(Balance) ++ "\n")
+	end
+.</actor>
+
+<actor>bank() ->
+	receive
+		{transfer,Amount,From,To} ->
+			<purple>From ! {deposit,-Amount},</purple>
+			<purple>To ! {deposit,+Amount},</purple>
+			bank()
+	end. 
+</actor> 
+ 
+ntransfers(0,_,_,_) -> true; %pattern matching - end recursive call on transfers when amount hits 0
+
+ntransfers(N,Bank,From,To) ->     
+	R = random(100),    
+	<purple>Bank ! {transfer,R,From,To},</purple>    
+	ntransfers(N-1,Bank,From,To).  % recursive call counting down from 100
+	
+<actor>clerk() ->    
+	receive       
+		{start,Bank,From,To} ->          
+			random:seed(now()),          
+			ntransfers(100,Bank,From,To),          
+			clerk()    
+	end.   
+</actor>	
+	
+<actor>start() -> % unsure if start is to be considered an actor???     
+	<actor>A1</actor> = <spawn>spawn(helloworld,account,[0]),</spawn>    
+	<actor>A2</actor> = <spawn>spawn(helloworld,account,[0]),</spawn>    
+	<actor>B1</actor> = <spawn>spawn(helloworld,bank,[]),</spawn>    
+	<actor>B2</actor> = <spawn>spawn(helloworld,bank,[]),</spawn>    
+	<actor>C1</actor> = <spawn>spawn(helloworld,clerk,[]),</spawn>    
+	<actor>C2</actor> = <spawn>spawn(helloworld,clerk,[]),</spawn>    
+	<actor>C1</actor> <send>!</send> <message>{start,B1,A1,A2},</message>   
+	<actor>C2</actor> <send>!</send> <message>{start,B2,A2,A1},</message>    
+	timer:sleep(1000),    
+	<actor>A1</actor> <send>!</send> <message>{printbalance},</message>    
+	<actor>A2</actor> <send>!</send> <message>{printbalance}</message> 
+.</actor>

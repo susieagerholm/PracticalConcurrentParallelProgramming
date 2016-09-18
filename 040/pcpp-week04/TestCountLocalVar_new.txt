@@ -1,0 +1,37 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-24T18:27:40+0200
+countSequential                   12727,2 us      17,87         32
+countParallelLocal      1         12992,6 us      17,06         32
+countParallelLocal      2          8661,1 us      75,39         32
+countParallelLocal      3          8198,6 us     189,99         32
+countParallelLocal      4          6635,4 us      37,31         64
+countParallelLocal      5          6678,7 us      72,21         64
+countParallelLocal      6          6688,4 us      55,94         64
+countParallelLocal      7          6542,8 us      43,56         64
+countParallelLocal      8          6411,5 us      25,93         64
+countParallelLocal      9          6535,8 us      24,41         64
+countParallelLocal     10          6531,5 us      28,76         64
+countParallelLocal     11          6500,9 us      28,99         64
+countParallelLocal     12          6466,3 us      23,77         64
+countParallelLocal     13          6570,7 us      24,03         64
+countParallelLocal     14          6587,2 us      17,65         64
+countParallelLocal     15          7010,8 us     318,91         64
+countParallelLocal     16          6578,7 us      25,32         64
+countParallelLocal     17          6651,5 us      23,30         64
+countParallelLocal     18          6669,4 us      59,49         64
+countParallelLocal     19          6643,7 us      14,46         64
+countParallelLocal     20          6724,8 us      18,96         64
+countParallelLocal     21          6838,4 us      12,44         64
+countParallelLocal     22          6863,2 us      23,35         64
+countParallelLocal     23          7676,2 us      33,05         64
+countParallelLocal     24          7709,4 us      22,54         64
+countParallelLocal     25          9072,2 us     531,03         32
+countParallelLocal     26          7391,8 us      30,50         64
+countParallelLocal     27          7483,0 us      71,74         64
+countParallelLocal     28          7697,2 us      35,19         64
+countParallelLocal     29          7798,9 us       9,94         64
+countParallelLocal     30          7982,8 us      53,53         32
+countParallelLocal     31          8006,9 us      24,68         32
+countParallelLocal     32          8224,4 us      30,01         32

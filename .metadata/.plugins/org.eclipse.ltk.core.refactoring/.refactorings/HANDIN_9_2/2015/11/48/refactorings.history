@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Copy element &apos;TestAccountLockOrder.java&apos; to &apos;HANDIN_9/src/(default package)&apos;&#x0D;&#x0A;- Original project: &apos;HANDIN_9_2&apos;&#x0D;&#x0A;- Destination element: &apos;HANDIN_9/src/(default package)&apos;&#x0D;&#x0A;- Original element: &apos;TestAccountLockOrder.java&apos;" description="Copy compilation unit" destination="=HANDIN_9/src&lt;" element1="/src&lt;{TestAccountLockOrder.java" files="0" flags="589830" folders="0" id="org.eclipse.jdt.ui.copy" policy="org.eclipse.jdt.ui.copyResources" stamp="1448812320592" units="1" version="1.0"/>
+</session>

@@ -1,0 +1,21 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T22:42:12+0200
+countSequential                   15098,9 us     992,15         32
+countParallel      1              12605,2 us     378,54         32
+countParallel      2               9364,0 us    1301,36         32
+countParallel      3               7606,3 us     383,86         32
+countParallel      4               5786,8 us      29,84         64
+countParallel      5               6220,3 us      74,53         64
+countParallel      6               5972,8 us      49,48         64
+countParallel      7               5802,0 us      26,36         64
+countParallel      8               5570,5 us      33,94         64
+countParallel      9               5648,0 us      76,06         64
+countParallel     10               5692,1 us      29,56         64
+countParallel     11               6073,8 us     405,90         64
+countParallel     12               5598,6 us      31,22         64
+countParallel     13               5680,1 us      14,60         64
+countParallel     14               5757,5 us      34,99         64
+countParallel     15               5741,7 us      36,65         64
+countParallel     16               5708,8 us      29,30         64

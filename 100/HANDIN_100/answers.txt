@@ -1,0 +1,357 @@
+//10.2.1
+  public void increment(int bin) {
+	  atomic(() -> {
+			counts[bin].increment();    
+	  }); 
+  }
+
+  public int getCount(int bin) {
+	  return atomic(() -> counts[bin].get()); 
+  }
+
+  public int getSpan() {
+	  //final : length cannot be altered 
+	  return counts.length;
+  }
+
+//10.2.2
+
+   0:         2
+   1:    283146
+   2:    790986
+   3:    988651
+   4:    810386
+   5:    524171
+   6:    296702
+   7:    155475
+   8:     78002
+   9:     38069
+  10:     18232
+  11:      8656
+  12:      4055
+  13:      1886
+  14:       865
+  15:       400
+  16:       179
+  17:        79
+  18:        35
+  19:        14
+  20:         7
+  21:         2
+  22:         0
+  23:         0
+  24:         0
+  25:         0
+  26:         0
+  27:         0
+  28:         0
+  29:         0
+        4000000
+
+//10.2.3
+
+public int[] getBins() {
+	  return atomic(() -> {
+		int[] temp = new int[counts.length];
+		for(int j = 0; j < temp.length; j++) {
+			temp[j] = counts[j].get();
+		}
+	  return temp;
+	  });
+  }
+
+//10.2.4
+
+public int getAndClear(int bin) {
+    return atomic(() -> {
+		int temp = getCount(bin);
+		counts[bin].set(0);
+		return temp;
+	});
+	
+  }
+
+//10.2.5
+I have chosen method b) for shorter transactions and less likelyhood of having to run transaction again :) 
+
+public void transferBins(Histogram hist) { //transfer local counts to global - periodic updates instead of one final
+	  for(int bin = 0; bin < counts.length; bin++) {
+		  final int bin_final = bin;
+		  atomic(() -> {
+			  int aggregate = getCount(bin_final); 
+			  aggregate += hist.getAndClear(bin_final);
+			  counts[bin_final].set(aggregate);
+		  });
+	  }
+  }
+
+//10.2.6
+
+private static void countPrimeFactorsWithStmHistogram() {
+	  final Histogram total = new StmHistogram(30);
+	//final Histogram histogram = new StmHistogram(30);
+    final int range = 4_000_000;
+	//create bins
+    final int threadCount = 10, perThread = range / threadCount;
+    final CyclicBarrier startBarrier = new CyclicBarrier(threadCount + 1), 
+      stopBarrier = startBarrier;
+    final Thread[] threads = new Thread[threadCount];
+    final Histogram histogram = new StmHistogram(30);
+    for (int t=0; t<threadCount; t++) { //create a bin for every thread
+      final int from = perThread * t, 
+                  to = (t+1 == threadCount) ? range : perThread * (t+1); //If last thread : to = range, else start of next threads range...
+        
+      threads[t] = //start new thread
+      
+      new Thread(() -> { 
+          	  
+	      try { startBarrier.await(); } catch (Exception exn) { }  //wait for all other threads to be ready to start
+	      
+	      for (int p=from; p<to; p++) //thread run through all # in bins range
+	    	  histogram.increment(countFactors(p));
+	      	  System.out.print("*");
+	      try { stopBarrier.await(); } catch (Exception exn) { } //wait
+	    });
+        threads[t].start(); //start thread
+    }
+    try { 
+    	
+    startBarrier.await(); 
+    for(int i = 0; i < 200; i++) {
+    	try {
+			Thread.sleep(30);
+			total.transferBins(histogram);
+			System.out.println("Making dump of total...time is : " + System.nanoTime());
+			dump(total);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	
+    }
+	
+    
+    } catch (Exception exn) { }
+    try { stopBarrier.await(); 
+    System.out.println("ALL THREADS FINISH...time is : " + System.nanoTime());
+    } catch (Exception exn) { }
+    
+    dump(total); //make dump of histogram 
+    dump(histogram); //make dump of histogram
+  }
+
+ALL THREADS FINISH...time is : 585571628058994
+   0:         2
+   1:    283146
+   2:    790986
+   3:    988651
+   4:    810386
+   5:    524171
+   6:    296702
+   7:    155475
+   8:     78002
+   9:     38069
+  10:     18232
+  11:      8656
+  12:      4055
+  13:      1886
+  14:       865
+  15:       400
+  16:       179
+  17:        79
+  18:        35
+  19:        14
+  20:         7
+  21:         2
+  22:         0
+  23:         0
+  24:         0
+  25:         0
+  26:         0
+  27:         0
+  28:         0
+  29:         0
+        4000000
+   0:         0
+   1:         0
+   2:         0
+   3:         0
+   4:         0
+   5:         0
+   6:         0
+   7:         0
+   8:         0
+   9:         0
+  10:         0
+  11:         0
+  12:         0
+  13:         0
+  14:         0
+  15:         0
+  16:         0
+  17:         0
+  18:         0
+  19:         0
+  20:         0
+  21:         0
+  22:         0
+  23:         0
+  24:         0
+  25:         0
+  26:         0
+  27:         0
+  28:         0
+  29:         0
+              0
+
+
+//10.2.7
+You would expect that calling transfer bin on a histogram giving the same histogram as argument would double the counts in the counts array. But this is not the case. Calling total.transferBin(total) just leaves the total histogram empty. I am not sure why that is because we have stored the initial count from counts before calling getAndClear. Maybe it is due to the fact, that the transactions take effect as an atomic?
+
+//10.3.1
+
+  // Return value v associated with key k, or null
+  public V get(K k) {
+	  return atomic(() -> { 
+	    final TxnRef<ItemNode<K,V>>[] bs = buckets.get();
+	    final int h = getHash(k), hash = h % bs.length; 
+	    Holder<V> holder = new Holder<V>();
+	    if(ItemNode.search(bs[hash].get(), k, holder)) {
+	      	return holder.get();
+	    }
+	    else {
+	    	return null;
+	    }
+	 });
+  }
+
+//10.3.2
+
+public void forEach(Consumer<K,V> consumer) {
+	  System.out.println("PRINT LISTEN....");
+	  final TxnRef<ItemNode<K,V>>[] bs = atomic(() -> buckets.get()); //peger på txnRef i buckets
+	  for (int i=0; i < bs.length; i++) {
+		  final int j = i; 
+		  ItemNode<K,V> node = atomic(() -> bs[j].get());
+		  while (node != null) {
+			consumer.accept(node.k, node.v);
+			
+			node = node.next;
+		 }	
+	  }
+  }	
+
+//10.3.3
+
+I believe my implementations of put, putifabsent and remove are correct because the assertions in testMap all pass when I run the program.
+
+I make sure, that every operation is wrapped with atomic, so that it is performed as a transaction. All parts of operation are commited or none, no other thread will see only partially commited operation and even if multiple threads are operating, 
+all transaction will be comparable to sequentially commited operations.  
+
+I make sure to make local reference to bucket, so that it will retain reference to 'original' buckets array no matter what.
+
+
+public V put(K k, V v) {
+	return atomic(() -> {
+		 final TxnRef<ItemNode<K,V>>[] bs = buckets.get();
+		 final int h = getHash(k), hash = h % bs.length;
+		 final Holder<V> old = new Holder<V>();
+		 final ItemNode<K,V> node = bs[hash].get(); //get start of relevant bucket /linked list
+		 
+		 ItemNode<K,V> deleted = ItemNode.delete(node, k, old); //find out where to attach node
+		 ItemNode<K,V> newNode = new ItemNode<K,V>(k, v, deleted); 
+		 bs[hash].set(newNode);
+		 if(deleted == node) { //linked list was not altered, aka. k was not found 
+			 cachedSize.increment(); //new k added to linked list = increment size  
+		 }
+		 return old.get();	      
+	});   
+  }
+
+  // Put v at key k only if absent.  
+  public V putIfAbsent(K k, V v) {
+	  return atomic(() -> {
+		 final TxnRef<ItemNode<K,V>>[] bs = buckets.get();
+		 final int h = getHash(k), hash = h % bs.length;
+		 final Holder<V> old = new Holder<V>();
+		 final ItemNode<K,V> node = bs[hash].get(); //get start of relevant bucket /linked list
+		 boolean found = ItemNode.search(node, k, old);
+		 //if k does not exist in current linked list - create new node with k
+		 if(!found) {
+			 ItemNode<K,V> deleted = ItemNode.delete(node, k, old); //return current list - find out where to attach node
+			 ItemNode<K,V> newNode = new ItemNode<K,V>(k, v, deleted); 
+			 bs[hash].set(newNode); 
+			 cachedSize.increment(); //only increment when node added
+		 }
+		 return old.get(); //return value of already existing node with k, if it exists      
+	 });   
+  }
+
+  // Remove and return the value at key k if any, else return null
+  public V remove(K k) {
+	  return atomic(() -> {
+		  final TxnRef<ItemNode<K,V>>[] bs = buckets.get();
+		  final int h = getHash(k), hash = h % bs.length;
+		  Holder<V> old = new Holder<V>();
+		  final ItemNode<K,V> node = bs[hash].get(); //get start of relevant bucket /linked list
+		  //return new linked list with k removed
+		  ItemNode<K,V> deleted = ItemNode.delete(node, k, old);
+		  //if k found and removed, set new linked list as start of bucket
+		  if (deleted != node) {
+			  bs[hash].set(deleted);
+			  cachedSize.decrement(); //decrement size 
+		  }
+		  return old.get();
+	});  
+  }
+
+
+//10.3.4
+//See put, putIfAbsent and Remove methods above for updates of cachedSize...
+
+  public int size() {
+	//call to cachedSize is atomic = will not see any non-committed alterings of cachedSize
+	return cachedSize.atomicGet();
+  }
+
+//10.3.5 
+
+A thread can block by calling retry on a transaction. In this case the thread will wait untill any of the read 
+variables changes and try to perform the operation again. So in order to implement blocking during reallocation
+put, putIfAbsent and remove will have to be wrapped in a check for if newBuckets is null (= operation can go on
+as planned), otherwise transacion will be retried when one of variables in read set (like newBuckets) changes.    
+
+The described approach will require locking in some form when requiring newBucket, which is a shared resource. 
+Transactions as such do not entail locking and does not ensure thread safety (jf. multiverse dokumentation), 
+so in order to prevent two threads from simultaneously checking and acting on newBuckets, we need locking 
+(fx via TxnLock). Reallocate might be a very lengthy operation if we are handling large buckets. Chances are, 
+that multiple transactions will be queued up when a call to reallocate finished so if they all start retrying
+their transactions at the same time, the optimistic scheme might not prove especially efficient for a while 
+after reallocate. As such reallocation operations might prove to become a serious performance bottleneck for 
+the application.
+
+ // Remove and return the value at key k if any, else return null
+  public V remove(K k) {
+	  return atomic(() -> {
+		  if( newBucket != null ) {
+			retry(); //back off - retry operation when one in set of read variables changes...
+		  }	 
+		  else {
+		  	final TxnRef<ItemNode<K,V>>[] bs = buckets.get();
+		  	final int h = getHash(k), hash = h % bs.length;
+		  	Holder<V> old = new Holder<V>();
+		  	final ItemNode<K,V> node = bs[hash].get(); //get start of relevant bucket /linked list
+		  	//return new linked list with k removed
+		  	ItemNode<K,V> deleted = ItemNode.delete(node, k, old);
+		  	//if k found and removed, set new linked list as start of bucket
+		  	if (deleted != node) {
+				bs[hash].set(deleted);
+		               	cachedSize.decrement(); //decrement size 
+		  	}
+		  	return old.get();
+		  }
+	});  
+  }
+
+
+

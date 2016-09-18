@@ -1,0 +1,37 @@
+# OS:   Windows 8.1; 6.3; amd64
+# JVM:  Oracle Corporation; 1.8.0_40
+# CPU:  Intel64 Family 6 Model 69 Stepping 1, GenuineIntel; 4 "cores"
+# Date: 2015-09-23T23:14:08+0200
+countSequential                   12721,9 us      36,87         32
+countParallelN      1             11198,0 us     195,10         32
+countParallelN      2              6893,0 us      20,46         64
+countParallelN      3              7536,7 us     220,13         32
+countParallelN      4              7180,6 us      85,40         64
+countParallelN      5              7191,9 us      57,93         64
+countParallelN      6              7256,7 us      47,99         64
+countParallelN      7              7673,7 us     152,87         64
+countParallelN      8              7434,9 us      52,35         64
+countParallelN      9              7711,8 us      22,41         64
+countParallelN     10              7796,7 us      53,76         64
+countParallelN     11              7669,7 us     191,98         64
+countParallelN     12              7584,5 us     113,18         64
+countParallelN     13              7676,1 us      51,43         64
+countParallelN     14              6911,9 us      15,84         64
+countParallelN     15              6917,7 us      29,21         64
+countParallelN     16              6863,5 us      20,95         64
+countParallelN     17              6944,7 us      47,67         64
+countParallelN     18              6924,3 us      12,48         64
+countParallelN     19              6924,8 us      26,84         64
+countParallelN     20              7184,0 us     275,00         64
+countParallelN     21              8033,9 us      58,04         32
+countParallelN     22              8013,0 us      44,83         32
+countParallelN     23              8009,4 us      80,56         32
+countParallelN     24              8038,4 us     145,36         32
+countParallelN     25              8091,4 us     127,81         32
+countParallelN     26              8100,9 us     138,78         64
+countParallelN     27              8081,4 us     213,70         32
+countParallelN     28              9521,8 us     233,61         32
+countParallelN     29              9605,8 us     192,40         32
+countParallelN     30              8980,9 us     941,22         32
+countParallelN     31              7826,1 us      29,43         32
+countParallelN     32              7848,5 us      18,59         32
